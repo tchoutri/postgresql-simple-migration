@@ -12,6 +12,8 @@
 -- For usage, see Readme.markdown.
 
 {-# LANGUAGE CPP               #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -20,9 +22,11 @@
 module Database.PostgreSQL.Simple.Migration
     (
     -- * Migration actions
-    runMigration
+      runMigration'
+    , runMigration
     , runMigrationA
     , runMigrations
+    , runMigrations'
     , runMigrationsA
     , sequenceMigrations
 
@@ -31,6 +35,7 @@ module Database.PostgreSQL.Simple.Migration
 
     -- * Migration types
     , MigrationContext(..)
+    , MigrationContext'(..)
     , MigrationCommand(..)
     , MigrationResult(..)
     , ScriptName
@@ -49,6 +54,7 @@ import           Control.Applicative                ((<$>), (<*>))
 import           Control.Monad                      (void, when)
 import qualified Crypto.Hash.MD5                    as MD5 (hash)
 import qualified Data.ByteString                    as BS (ByteString, readFile)
+import qualified Data.ByteString.Char8              as BS8 (unpack)
 import qualified Data.ByteString.Base64             as B64 (encode)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T (putStrLn, hPutStrLn)
@@ -83,6 +89,23 @@ defaultLogWrite = either (T.hPutStrLn stderr) T.putStrLn
 -- It is recommended to wrap 'runMigration' inside a database transaction.
 runMigration :: MigrationContext -> IO (MigrationResult String)
 runMigration = runMigrationA defaultLogWrite
+--runMigration (MigrationContext cmd verbose con) = 
+--  runMigration' (MigrationContext' cmd verbose con "schema_migrations")
+
+runMigration' :: MigrationContext' -> IO (MigrationResult String)
+runMigration' (MigrationContext' cmd verbose con tableName) = case cmd of
+    MigrationInitialization ->
+        initializeSchema con tableName verbose >> return MigrationSuccess
+    MigrationDirectory path ->
+        executeDirectoryMigration con tableName verbose path
+    MigrationScript name contents ->
+        executeMigration con tableName verbose name contents
+    MigrationFile name path ->
+        executeMigration con tableName verbose name =<< BS.readFile path
+    MigrationValidation validationCmd ->
+        executeValidation con tableName verbose validationCmd
+    MigrationCommands commands ->
+        runMigrations' verbose con commands tableName
 
 -- | A version of 'runMigration' which gives you control of where the log
 -- messages are sent to.
@@ -142,6 +165,30 @@ runMigrationsA logWrite verbose con commands =
         | c <- commands
         ]
 
+{-
+runMigrations verbose con commands = runMigrations' verbose con commands "schema_migrations"
+
+-- | Execute a sequence of migrations
+--
+-- Returns 'MigrationSuccess' if all of the provided 'MigrationCommand's
+-- execute without error. If an error occurs, execution is stopped and the
+-- 'MigrationError' is returned.
+--
+-- It is recommended to wrap 'runMigrations' inside a database transaction.
+runMigrations'
+    :: Bool
+       -- ^ Run in verbose mode
+    -> Connection
+       -- ^ The postgres connection to use
+    -> [MigrationCommand]
+       -- ^ The commands to run
+    -> BS.ByteString
+       -- ^ The schema_migrations table name
+    -> IO (MigrationResult String)
+runMigrations' verbose con commands tableName =
+    sequenceMigrations [runMigration' (MigrationContext' c verbose con tableName) | c <- commands]
+-}
+
 -- | Run a sequence of contexts, stopping on the first failure
 sequenceMigrations
     :: Monad m
@@ -170,6 +217,14 @@ executeDirectoryMigration logWrite con verbose dir =
         executeMigrationFile f =
             BS.readFile (dir ++ "/" ++ f) >>=
                 executeMigration logWrite con verbose f
+{-
+xecuteDirectoryMigration :: Connection -> BS.ByteString -> Bool -> FilePath -> IO (MigrationResult String)
+executeDirectoryMigration con tableName verbose dir =
+    scriptsInDirectory dir >>= go
+    where
+        go fs = sequenceMigrations (executeMigrationFile <$> fs)
+        executeMigrationFile f = executeMigration con tableName verbose f =<< BS.readFile (dir ++ "/" ++ f)
+-}
 
 -- | Lists all files in the given 'FilePath' 'dir' in alphabetical order.
 scriptsInDirectory :: FilePath -> IO [String]
@@ -204,6 +259,27 @@ executeMigration logWrite con verbose name contents = do
             return (MigrationError name)
     where
         q = "insert into schema_migrations(filename, checksum) values(?, ?)"
+{-
+executeMigration :: Connection -> BS.ByteString -> Bool -> ScriptName -> BS.ByteString -> IO (MigrationResult String)
+executeMigration con tableName verbose name contents = do
+    let checksum = md5Hash contents
+    checkScript con tableName name checksum >>= \case
+        ScriptOk -> do
+            when verbose $ putStrLn $ "Ok:\t" ++ name
+            return MigrationSuccess
+        ScriptNotExecuted -> do
+            void $ execute_ con (Query contents)
+            void $ execute con q (name, checksum)
+            when verbose $ putStrLn $ "Execute:\t" ++ name
+            return MigrationSuccess
+        ScriptModified { actual, expected } -> do
+            when verbose $ putStrLn
+              $ "Fail:\t" ++ name
+              ++ "\n" ++ scriptModifiedErrorMessage expected actual
+            return (MigrationError name)
+    where
+        q = "insert into " <> Query tableName <> "(filename, checksum) values(?, ?)"
+-}
 
 -- | Initializes the database schema with a helper table containing
 -- meta-information about executed migrations.
@@ -217,6 +293,18 @@ initializeSchema logWrite con verbose = do
         , ", executed_at timestamp without time zone not null default now() "
         , ");"
         ]
+{-
+initializeSchema :: Connection -> BS.ByteString -> Bool -> IO ()
+initializeSchema con tableName verbose = do
+    when verbose $ putStrLn "Initializing schema"
+    void $ execute_ con $ mconcat
+        [ "create table if not exists " <> Query tableName <> " "
+        , "( filename varchar(512) not null"
+        , ", checksum varchar(32) not null"
+        , ", executed_at timestamp without time zone not null default now() "
+        , ");"
+        ]
+-}
 
 -- | Validates a 'MigrationCommand'. Validation is defined as follows for these
 -- types:
@@ -269,14 +357,52 @@ executeValidation logWrite con verbose cmd = case cmd of
 
         goScripts path xs = sequenceMigrations (goScript path <$> xs)
         goScript path x = validate x =<< BS.readFile (path ++ "/" ++ x)
+{-
+executeValidation :: Connection -> BS.ByteString -> Bool -> MigrationCommand -> IO (MigrationResult String)
+executeValidation con tableName' verbose cmd = 
+  let tableName = BS8.unpack tableName' in
+  case cmd of
+    MigrationInitialization ->
+        existsTable con tableName >>= \r -> return $ if r
+            then MigrationSuccess
+            else MigrationError $ "No such table: " <> tableName
+    MigrationDirectory path ->
+        scriptsInDirectory path >>= goScripts path
+    MigrationScript name contents ->
+        validate name contents
+    MigrationFile name path ->
+        validate name =<< BS.readFile path
+    MigrationValidation _ ->
+        return MigrationSuccess
+    MigrationCommands cs ->
+        sequenceMigrations (executeValidation con tableName' verbose <$> cs)
+    where
+        validate name contents =
+            checkScript con tableName' name (md5Hash contents) >>= \case
+                ScriptOk -> do
+                    when verbose $ putStrLn $ "Ok:\t" ++ name
+                    return MigrationSuccess
+                ScriptNotExecuted -> do
+                    when verbose $ putStrLn $ "Missing:\t" ++ name
+                    return (MigrationError $ "Missing: " ++ name)
+                ScriptModified { expected, actual } -> do
+                    when verbose $ putStrLn
+                      $ "Checksum mismatch:\t" ++ name
+                      ++ "\n" ++ scriptModifiedErrorMessage expected actual
+                    return (MigrationError $ "Checksum mismatch: " ++ name)
+
+        goScripts path xs = sequenceMigrations (goScript path <$> xs)
+        goScript path x = validate x =<< BS.readFile (path ++ "/" ++ x)
+-}
+
 
 -- | Checks the status of the script with the given name 'name'.
 -- If the script has already been executed, the checksum of the script
 -- is compared against the one that was executed.
 -- If there is no matching script entry in the database, the script
 -- will be executed and its meta-information will be recorded.
-checkScript :: Connection -> ScriptName -> Checksum -> IO CheckScriptResult
-checkScript con name fileChecksum =
+checkScript :: Connection -> BS.ByteString -> ScriptName -> Checksum -> IO CheckScriptResult
+checkScript con tableName name fileChecksum =
     query con q (Only name) >>= \case
         [] ->
             return ScriptNotExecuted
@@ -289,7 +415,7 @@ checkScript con name fileChecksum =
                     })
     where
         q = mconcat
-            [ "select checksum from schema_migrations "
+            [ "select checksum from " <> Query tableName <> " "
             , "where filename = ? limit 1"
             ]
 
@@ -297,7 +423,6 @@ checkScript con name fileChecksum =
 -- encoding.
 md5Hash :: BS.ByteString -> Checksum
 md5Hash = B64.encode . MD5.hash
-
 -- | Log write function.
 --
 -- 'Either' indicates log level,
@@ -337,8 +462,7 @@ instance Semigroup MigrationCommand where
 
 instance Monoid MigrationCommand where
     mempty = MigrationCommands []
-    mappend (MigrationCommands xs) (MigrationCommands ys) =
-        MigrationCommands (xs ++ ys)
+    mappend (MigrationCommands xs) (MigrationCommands ys) = MigrationCommands (xs ++ ys)
     mappend (MigrationCommands xs) y = MigrationCommands (xs ++ [y])
     mappend x (MigrationCommands ys) = MigrationCommands (x : ys)
     mappend x y = MigrationCommands [x, y]
@@ -359,6 +483,11 @@ scriptModifiedErrorMessage :: Checksum -> Checksum -> T.Text
 scriptModifiedErrorMessage expected actual
     = "expected: " <> fromString (show expected)
     <> "\nhash was: " <> fromString (show actual)
+{-
+scriptModifiedErrorMessage :: Checksum -> Checksum -> [Char]
+scriptModifiedErrorMessage expected actual =
+  "expected: " ++ show expected ++ "\nhash was: " ++ show actual
+-}
 
 -- | A sum-type denoting the result of a migration.
 data MigrationResult a
@@ -370,20 +499,32 @@ data MigrationResult a
 
 -- | The 'MigrationContext' provides an execution context for migrations.
 data MigrationContext = MigrationContext
-    { migrationContextCommand    :: MigrationCommand
+    { migrationContextCommand    :: !MigrationCommand
     -- ^ The action that will be performed by 'runMigration'
-    , migrationContextVerbose    :: Bool
+    , migrationContextVerbose    :: !Bool
     -- ^ Verbosity of the library.
-    , migrationContextConnection :: Connection
+    , migrationContextConnection :: !Connection
     -- ^ The PostgreSQL connection to use for migrations.
     }
 
+-- | The 'MigrationContext'' provides an execution context for migrations, with additional options to MigrationContext
+data MigrationContext' = MigrationContext'
+    { migrationContextCommand'    :: !MigrationCommand
+    -- ^ The action that will be performed by 'runMigration'
+    , migrationContextVerbose'    :: !Bool
+    -- ^ Verbosity of the library.
+    , migrationContextConnection' :: !Connection
+    -- ^ The PostgreSQL connection to use for migrations.
+    , migrationTableName :: !BS.ByteString
+    -- ^ The name of the table that stores the migrations
+    }
+
 -- | Produces a list of all executed 'SchemaMigration's.
-getMigrations :: Connection -> IO [SchemaMigration]
-getMigrations = flip query_ q
+getMigrations :: Connection -> BS.ByteString -> IO [SchemaMigration]
+getMigrations con tableName = query_ con q
     where q = mconcat
             [ "select filename, checksum, executed_at "
-            , "from schema_migrations order by executed_at asc"
+            , "from " <> Query tableName <> " order by executed_at asc"
             ]
 
 -- | A product type representing a single, executed 'SchemaMigration'.
