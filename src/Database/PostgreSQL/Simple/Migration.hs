@@ -32,7 +32,6 @@ module Database.PostgreSQL.Simple.Migration
 
     -- * Logging
     , defaultLogWrite
-
     -- * Migration types
     , MigrationContext(..)
     , MigrationContext'(..)
@@ -107,7 +106,6 @@ runMigration' (MigrationContext' cmd verbose con tableName) = case cmd of
         executeValidation con tableName verbose validationCmd
     MigrationCommands commands ->
         runMigrations' verbose con commands tableName
-
 -- | A version of 'runMigration' which gives you control of where the log
 -- messages are sent to.
 runMigrationA
@@ -396,7 +394,6 @@ executeValidation con tableName' verbose cmd =
         goScript path x = validate x =<< BS.readFile (path ++ "/" ++ x)
 -}
 
-
 -- | Checks the status of the script with the given name 'name'.
 -- If the script has already been executed, the checksum of the script
 -- is compared against the one that was executed.
@@ -424,11 +421,6 @@ checkScript con tableName name fileChecksum =
 -- encoding.
 md5Hash :: BS.ByteString -> Checksum
 md5Hash = B64.encode . MD5.hash
--- | Log write function.
---
--- 'Either' indicates log level,
--- 'Left' for an error message and 'Right' for an info message.
-type LogWrite = Either T.Text T.Text -> IO ()
 
 -- | The checksum type of a migration script.
 type Checksum = BS.ByteString
@@ -480,15 +472,9 @@ data CheckScriptResult
     -- ^ The script has not been executed, yet. This is good.
     deriving (Show, Eq, Read, Ord)
 
-scriptModifiedErrorMessage :: Checksum -> Checksum -> T.Text
-scriptModifiedErrorMessage expected actual
-    = "expected: " <> fromString (show expected)
-    <> "\nhash was: " <> fromString (show actual)
-{-
 scriptModifiedErrorMessage :: Checksum -> Checksum -> [Char]
 scriptModifiedErrorMessage expected actual =
   "expected: " ++ show expected ++ "\nhash was: " ++ show actual
--}
 
 -- | A sum-type denoting the result of a migration.
 data MigrationResult a
