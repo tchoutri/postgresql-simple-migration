@@ -20,9 +20,12 @@ module Main
 import           Database.PostgreSQL.Simple               (connectPostgreSQL)
 import           Database.PostgreSQL.Simple.MigrationTest (migrationSpec)
 import           Database.PostgreSQL.Simple.Util          (withTransactionRolledBack)
+import           Database.PostgreSQL.Simple.UpAndDownTest (upAndDownSpec)
 import           Test.Hspec                               (hspec)
 
 main :: IO ()
 main = do
     con <- connectPostgreSQL "dbname=test"
-    withTransactionRolledBack con (hspec (migrationSpec con))
+    withTransactionRolledBack con $ hspec $ do
+      migrationSpec con
+      upAndDownSpec

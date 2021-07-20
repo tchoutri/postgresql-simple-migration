@@ -15,6 +15,7 @@
 
 module Database.PostgreSQL.Simple.MigrationTest where
 
+import Control.Monad (void)
 import           Database.PostgreSQL.Simple           (Connection)
 import           Database.PostgreSQL.Simple.Migration (MigrationCommand (..),
                                                        MigrationContext (..),
@@ -32,6 +33,7 @@ migrationSpec con = describe "Migrations" $ do
     let migrationScriptAltered = MigrationScript "test.sql" ""
     let migrationDir = MigrationDirectory "share/test/scripts"
     let migrationFile = MigrationFile "s.sql" "share/test/script.sql"
+    let migrationUpDownFile = MigrationFileUp "up_down.sql" "share/test/up_down.sql"
 
     it "asserts that the schema_migrations table does not exist" $ do
         r <- existsTable con "schema_migrations"
@@ -107,6 +109,12 @@ migrationSpec con = describe "Migrations" $ do
         r <- getMigrations con
         map schemaMigrationName r `shouldBe` ["test.sql", "1.sql", "s.sql"]
 
+    it "Create and delete a table based on up/down migrations" $ do
+        void $ runMigration $ MigrationContext migrationUpDownFile False con
+        wasTableCreated <- existsTable con "up_table"
+        void $ runMigration $ MigrationContext migrationUpDownFile False con
+        wasTableDeleted <- not <$> existsTable con "up_table"
+        wasTableCreated && wasTableDeleted `shouldBe` True
     where
         q = "create table t1 (c1 varchar);"
 

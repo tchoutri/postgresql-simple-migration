@@ -81,6 +81,10 @@ runMigration (MigrationContext cmd verbose con) = case cmd of
         executeMigration con verbose name contents
     MigrationFile name path ->
         executeMigration con verbose name =<< BS.readFile path
+    MigrationFileUp name path ->
+        undefined -- executeMigration con verbose name =<< getUpMigration path
+    MigrationFileDown name path ->
+        undefined -- executeMigration con verbose name =<< getDownMigration path
     MigrationValidation validationCmd ->
         executeValidation con verbose validationCmd
     MigrationCommands commands ->
@@ -187,6 +191,10 @@ executeValidation con verbose cmd = case cmd of
         validate name contents
     MigrationFile name path ->
         validate name =<< BS.readFile path
+    MigrationFileUp name path ->
+        undefined
+    MigrationFileDown name path ->
+        undefined
     MigrationValidation _ ->
         return MigrationSuccess
     MigrationCommands cs ->
@@ -259,6 +267,12 @@ data MigrationCommand
     -- ^ Executes a migration based on the provided bytestring.
     | MigrationValidation MigrationCommand
     -- ^ Validates that the provided MigrationCommand has been executed.
+    | MigrationFileUp ScriptName FilePath
+    -- ^ Execute an 'up' migration based on the script located at the provided
+    -- 'FilePath'
+    | MigrationFileDown ScriptName FilePath
+    -- ^ Execute a 'down' migration based on the script located at the provided
+    -- 'FilePath'
     | MigrationCommands [MigrationCommand]
     -- ^ Performs a series of 'MigrationCommand's in sequence.
     deriving (Show, Eq, Read, Ord)
