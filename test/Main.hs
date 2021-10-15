@@ -9,7 +9,6 @@
 --
 -- The test entry-point for postgresql-simple-migration.
 
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main

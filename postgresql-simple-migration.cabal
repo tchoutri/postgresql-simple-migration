@@ -1,16 +1,16 @@
+cabal-version:              2.2
 name:                       postgresql-simple-migration
-version:                    0.1.15.0
+version:                    0.1.16.0
 synopsis:                   PostgreSQL Schema Migrations
 homepage:                   https://github.com/ameingast/postgresql-simple-migration
 Bug-reports:                https://github.com/ameingast/postgresql-simple-migration/issues
-license:                    BSD3
+license:                    BSD-3-Clause
 license-file:               License
 author:                     Andreas Meingast <ameingast@gmail.com>
 maintainer:                 Andreas Meingast <ameingast@gmail.com>
 copyright:                  2014-2016, Andreas Meingast
 category:                   Database
 build-type:                 Simple
-cabal-version:              >= 1.10
 description:                A PostgreSQL-simple schema migration utility
 
 extra-source-files:         License
@@ -30,14 +30,24 @@ source-repository head
     type:                   git
     location:               git://github.com/ameingast/postgresql-simple-migration
 
-Library
+common common-options
+  build-depends:
+    base >=4.9 && <5
+  default-language:
+    Haskell2010
+
+common common-ghc-options
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Wredundant-constraints -Wnoncanonical-monad-instances -Widentities -fhide-source-paths -Wpartial-fields -fhide-source-paths -freverse-errors -fwrite-ide-info -hiedir=.hie
+
+
+library
+    import:                 common-options
+    import:                 common-ghc-options
     exposed-modules:        Database.PostgreSQL.Simple.Migration
                             Database.PostgreSQL.Simple.Util
     hs-source-dirs:         src
-    ghc-options:            -Wall -fwarn-tabs -fwarn-incomplete-uni-patterns
-    default-extensions:     OverloadedStrings, CPP, LambdaCase
     default-language:       Haskell2010
-    build-depends:          base                        >= 4.6      && < 5.0,
+    build-depends:          base                        >= 4.9      && < 5.0,
                             base64-bytestring           >= 1.0      && < 1.2,
                             bytestring                  >= 0.10     && < 0.11,
                             cryptohash                  >= 0.11     && < 0.12,
@@ -46,15 +56,14 @@ Library
                             time                        >= 1.4      && < 1.10,
                             text                        >= 1.2      && < 1.3
 
-Executable migrate
+executable migrate
+    import:                 common-options
+    import:                 common-ghc-options
+    ghc-options:            -threaded
     main-is:                Main.hs
     hs-source-dirs:         src
-    other-modules:          Database.PostgreSQL.Simple.Migration
-                            Database.PostgreSQL.Simple.Util
-    ghc-options:            -Wall -fwarn-tabs -fwarn-incomplete-uni-patterns
-    default-extensions:     OverloadedStrings, CPP, LambdaCase
     default-language:       Haskell2010
-    build-depends:          base                        >= 4.6      && < 5.0,
+    build-depends:          base                        >= 4.9      && < 5.0,
                             base64-bytestring           >= 1.0      && < 1.2,
                             bytestring                  >= 0.10     && < 0.11,
                             cryptohash                  >= 0.11     && < 0.12,
@@ -64,14 +73,15 @@ Executable migrate
                             text                        >= 1.2      && < 1.3
 
 test-suite tests
+    import:                 common-options
+    import:                 common-ghc-options
     main-is:                Main.hs
     hs-source-dirs:         test
     other-modules:          Database.PostgreSQL.Simple.MigrationTest
     ghc-options:            -Wall -fwarn-tabs -fwarn-incomplete-uni-patterns
-    default-extensions:     OverloadedStrings, CPP, LambdaCase
     default-language:       Haskell2010
     type:                   exitcode-stdio-1.0
-    build-depends:          base                        >= 4.6      && < 5.0,
+    build-depends:          base                        >= 4.9      && < 5.0,
                             bytestring                  >= 0.10     && < 0.11,
                             postgresql-simple           >= 0.4      && < 0.7,
                             hspec                       >= 2.2      && < 2.8,

@@ -194,11 +194,11 @@ sequenceMigrations
     => [m (MigrationResult e)]
     -> m (MigrationResult e)
 sequenceMigrations = \case
-    []   -> return MigrationSuccess
+    []   -> pure MigrationSuccess
     c:cs -> do
         r <- c
         case r of
-          MigrationError s -> return (MigrationError s)
+          MigrationError s -> pure (MigrationError s)
           MigrationSuccess -> sequenceMigrations cs
 
 -- | Executes all SQL-file based migrations located in the provided 'dir'
@@ -264,18 +264,18 @@ executeMigration con tableName verbose name contents = do
     let checksum = md5Hash contents
     checkScript con tableName name checksum >>= \case
         ScriptOk -> do
-            when verbose $ putStrLn $ "Ok:\t" ++ name
-            return MigrationSuccess
+            when verbose $ putStrLn $ "Ok:\t" <> name
+            pure MigrationSuccess
         ScriptNotExecuted -> do
             void $ execute_ con (Query contents)
             void $ execute con q (name, checksum)
-            when verbose $ putStrLn $ "Execute:\t" ++ name
-            return MigrationSuccess
+            when verbose $ putStrLn $ "Execute:\t" <> name
+            pure MigrationSuccess
         ScriptModified { actual, expected } -> do
             when verbose $ putStrLn
-              $ "Fail:\t" ++ name
-              ++ "\n" ++ scriptModifiedErrorMessage expected actual
-            return (MigrationError name)
+              $ "Fail:\t" <> name
+              <> "\n" <> scriptModifiedErrorMessage expected actual
+            pure (MigrationError name)
     where
         q = "insert into " <> Query tableName <> "(filename, checksum) values(?, ?)"
 -}
@@ -362,7 +362,7 @@ executeValidation con tableName' verbose cmd =
   let tableName = BS8.unpack tableName' in
   case cmd of
     MigrationInitialization ->
-        existsTable con tableName >>= \r -> return $ if r
+        existsTable con tableName >>= \r -> pure $ if r
             then MigrationSuccess
             else MigrationError $ "No such table: " <> tableName
     MigrationDirectory path ->
@@ -372,27 +372,26 @@ executeValidation con tableName' verbose cmd =
     MigrationFile name path ->
         validate name =<< BS.readFile path
     MigrationValidation _ ->
-        return MigrationSuccess
+        pure MigrationSuccess
     MigrationCommands cs ->
         sequenceMigrations (executeValidation con tableName' verbose <$> cs)
     where
         validate name contents =
             checkScript con tableName' name (md5Hash contents) >>= \case
                 ScriptOk -> do
-                    when verbose $ putStrLn $ "Ok:\t" ++ name
-                    return MigrationSuccess
+                    when verbose $ putStrLn $ "Ok:\t" <> name
+                    pure MigrationSuccess
                 ScriptNotExecuted -> do
-                    when verbose $ putStrLn $ "Missing:\t" ++ name
-                    return (MigrationError $ "Missing: " ++ name)
+                    when verbose $ putStrLn $ "Missing:\t" <> name
+                    pure (MigrationError $ "Missing: " <> name)
                 ScriptModified { expected, actual } -> do
                     when verbose $ putStrLn
-                      $ "Checksum mismatch:\t" ++ name
-                      ++ "\n" ++ scriptModifiedErrorMessage expected actual
-                    return (MigrationError $ "Checksum mismatch: " ++ name)
+                      $ "Checksum mismatch:\t" <> name
+                      <> "\n" <> scriptModifiedErrorMessage expected actual
+                    pure (MigrationError $ "Checksum mismatch: " <> name)
 
         goScripts path xs = sequenceMigrations (goScript path <$> xs)
-        goScript path x = validate x =<< BS.readFile (path ++ "/" ++ x)
--}
+        goScript path x = validate x =<< BS.readFile (path <> "/" <> x)
 
 -- | Checks the status of the script with the given name 'name'.
 -- If the script has already been executed, the checksum of the script
@@ -403,17 +402,17 @@ checkScript :: Connection -> BS.ByteString -> ScriptName -> Checksum -> IO Check
 checkScript con tableName name fileChecksum =
     query con q (Only name) >>= \case
         [] ->
-            return ScriptNotExecuted
+            pure ScriptNotExecuted
         Only dbChecksum:_ | fileChecksum == dbChecksum ->
-            return ScriptOk
+            pure ScriptOk
         Only dbChecksum:_ ->
-            return (ScriptModified {
+            pure (ScriptModified {
                        expected = dbChecksum,
                        actual = fileChecksum
                     })
     where
         q = mconcat
-            [ "select checksum from " <> Query tableName <> " "
+            [ "select checksum from " `mappend` Query tableName `mappend` " "
             , "where filename = ? limit 1"
             ]
 
@@ -448,17 +447,15 @@ data MigrationCommand
     -- ^ Performs a series of 'MigrationCommand's in sequence.
     deriving (Show, Eq, Read, Ord)
 
-#if __GLASGOW_HASKELL__ >= 804
 instance Semigroup MigrationCommand where
-    (<>) = mappend
-#endif
+    (<>) (MigrationCommands xs) (MigrationCommands ys) = MigrationCommands (xs <> ys)
+    (<>) (MigrationCommands xs) y = MigrationCommands (xs <> [y])
+    (<>) x (MigrationCommands ys) = MigrationCommands (x : ys)
+    (<>) x y = MigrationCommands [x, y]
 
 instance Monoid MigrationCommand where
     mempty = MigrationCommands []
-    mappend (MigrationCommands xs) (MigrationCommands ys) = MigrationCommands (xs ++ ys)
-    mappend (MigrationCommands xs) y = MigrationCommands (xs ++ [y])
-    mappend x (MigrationCommands ys) = MigrationCommands (x : ys)
-    mappend x y = MigrationCommands [x, y]
+    mappend = (<>)
 
 -- | A sum-type denoting the result of a single migration.
 data CheckScriptResult
@@ -474,7 +471,7 @@ data CheckScriptResult
 
 scriptModifiedErrorMessage :: Checksum -> Checksum -> [Char]
 scriptModifiedErrorMessage expected actual =
-  "expected: " ++ show expected ++ "\nhash was: " ++ show actual
+  "expected: " <> show expected <> "\nhash was: " <> show actual
 
 -- | A sum-type denoting the result of a migration.
 data MigrationResult a

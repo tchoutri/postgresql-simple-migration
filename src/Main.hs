@@ -9,7 +9,6 @@
 --
 -- A standalone program for the postgresql-simple-migration library.
 
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -17,9 +16,6 @@ module Main (
     main
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative
-#endif
 import           Control.Exception
 import qualified Data.ByteString                      as BS (ByteString)
 import qualified Data.ByteString.Char8                as BS8 (pack)

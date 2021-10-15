@@ -9,7 +9,6 @@
 --
 -- A collection of utilites for database migrations.
 
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.PostgreSQL.Simple.Util
