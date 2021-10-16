@@ -1,6 +1,6 @@
 cabal-version:              2.2
 name:                       postgresql-simple-migration
-version:                    0.1.16.0
+version:                    0.2.0.0
 synopsis:                   PostgreSQL Schema Migrations
 homepage:                   https://github.com/ameingast/postgresql-simple-migration
 Bug-reports:                https://github.com/ameingast/postgresql-simple-migration/issues
