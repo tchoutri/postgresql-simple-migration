@@ -27,86 +27,87 @@ import           Test.Hspec                           (Spec, describe, it, shoul
 
 migrationSpec:: Connection -> Spec
 migrationSpec con = describe "Migrations" $ do
-    let migrationScript = MigrationScript "test.sql" q
-    let migrationScriptAltered = MigrationScript "test.sql" ""
-    let migrationDir = MigrationDirectory "share/test/scripts"
-    let migrationFile = MigrationFile "s.sql" "share/test/script.sql"
+  let
+    migrationScript = MigrationScript "test.sql" q
+    migrationScriptAltered = MigrationScript "test.sql" ""
+    migrationDir = MigrationDirectory "share/test/scripts"
+    migrationFile = MigrationFile "s.sql" "share/test/script.sql"
 
-    it "asserts that the schema_migrations table does not exist" $ do
-        r <- existsTable con "schema_migrations"
-        r `shouldBe` False
+  it "asserts that the schema_migrations table does not exist" $ do
+    r <- existsTable con "schema_migrations"
+    r `shouldBe` False
 
-    it "validates an initialization on an empty database" $ do
-        r <- runMigration con defaultOptions (MigrationValidation MigrationInitialization)
-        r `shouldBe` MigrationError "No such table: schema_migrations"
+  it "validates an initialization on an empty database" $ do
+    r <- runMigration con defaultOptions (MigrationValidation MigrationInitialization)
+    r `shouldBe` MigrationError "No such table: schema_migrations"
 
-    it "initializes a database" $ do
-        r <- runMigration con defaultOptions MigrationInitialization
-        r `shouldBe` MigrationSuccess
+  it "initializes a database" $ do
+    r <- runMigration con defaultOptions MigrationInitialization
+    r `shouldBe` MigrationSuccess
 
-    it "creates the schema_migrations table" $ do
-        r <- existsTable con "schema_migrations"
-        r `shouldBe` True
+  it "creates the schema_migrations table" $ do
+    r <- existsTable con "schema_migrations"
+    r `shouldBe` True
 
-    it "executes a migration script" $ do
-        r <- runMigration con defaultOptions migrationScript
-        r `shouldBe` MigrationSuccess
+  it "executes a migration script" $ do
+    r <- runMigration con defaultOptions migrationScript
+    r `shouldBe` MigrationSuccess
 
-    it "creates the table from the executed script" $ do
-        r <- existsTable con "t1"
-        r `shouldBe` True
+  it "creates the table from the executed script" $ do
+    r <- existsTable con "t1"
+    r `shouldBe` True
 
-    it "skips execution of the same migration script" $ do
-        r <- runMigration con defaultOptions migrationScript
-        r `shouldBe` MigrationSuccess
+  it "skips execution of the same migration script" $ do
+    r <- runMigration con defaultOptions migrationScript
+    r `shouldBe` MigrationSuccess
 
-    it "reports an error on a different checksum for the same script" $ do
-        r <- runMigration con defaultOptions migrationScriptAltered
-        r `shouldBe` MigrationError "test.sql"
+  it "reports an error on a different checksum for the same script" $ do
+    r <- runMigration con defaultOptions migrationScriptAltered
+    r `shouldBe` MigrationError "test.sql"
 
-    it "executes migration scripts inside a folder" $ do
-        r <- runMigration con defaultOptions migrationDir
-        r `shouldBe` MigrationSuccess
+  it "executes migration scripts inside a folder" $ do
+    r <- runMigration con defaultOptions migrationDir
+    r `shouldBe` MigrationSuccess
 
-    it "creates the table from the executed scripts" $ do
-        r <- existsTable con "t2"
-        r `shouldBe` True
+  it "creates the table from the executed scripts" $ do
+    r <- existsTable con "t2"
+    r `shouldBe` True
 
-    it "executes a file based migration script" $ do
-        r <- runMigration con defaultOptions migrationFile
-        r `shouldBe` MigrationSuccess
+  it "executes a file based migration script" $ do
+    r <- runMigration con defaultOptions migrationFile
+    r `shouldBe` MigrationSuccess
 
-    it "creates the table from the executed scripts" $ do
-        r <- existsTable con "t3"
-        r `shouldBe` True
+  it "creates the table from the executed scripts" $ do
+    r <- existsTable con "t3"
+    r `shouldBe` True
 
-    it "validates initialization" $ do
-        r <- runMigration con defaultOptions $ MigrationValidation MigrationInitialization
-        r `shouldBe` MigrationSuccess
+  it "validates initialization" $ do
+    r <- runMigration con defaultOptions $ MigrationValidation MigrationInitialization
+    r `shouldBe` MigrationSuccess
 
-    it "validates an executed migration script" $ do
-        r <- runMigration con defaultOptions $ MigrationValidation migrationScript
-        r `shouldBe` MigrationSuccess
+  it "validates an executed migration script" $ do
+    r <- runMigration con defaultOptions $ MigrationValidation migrationScript
+    r `shouldBe` MigrationSuccess
 
-    it "validates all scripts inside a folder" $ do
-        r <- runMigration con defaultOptions $ MigrationValidation migrationDir
-        r `shouldBe` MigrationSuccess
+  it "validates all scripts inside a folder" $ do
+    r <- runMigration con defaultOptions $ MigrationValidation migrationDir
+    r `shouldBe` MigrationSuccess
 
-    it "validates an executed migration file" $ do
-        r <- runMigration con defaultOptions $ MigrationValidation migrationFile
-        r `shouldBe` MigrationSuccess
+  it "validates an executed migration file" $ do
+    r <- runMigration con defaultOptions $ MigrationValidation migrationFile
+    r `shouldBe` MigrationSuccess
 
-    it "gets a list of executed migrations" $ do
-        r <- getMigrations con
-        map schemaMigrationName r `shouldBe` ["test.sql", "1.sql", "s.sql"]
+  it "gets a list of executed migrations" $ do
+    r <- getMigrations con
+    map schemaMigrationName r `shouldBe` ["test.sql", "1.sql", "s.sql"]
 
-    it "log can be redirected" $ do
-        ref <- newIORef mempty
-        let logWrite = modifyIORef ref . (<>) . show
-        let opts = defaultOptions { optLogWriter = logWrite}
-        _ <- runMigration con opts MigrationInitialization
-        readIORef ref >>= (`shouldBe` "Right \"Initializing schema\"")
+  it "log can be redirected" $ do
+    ref <- newIORef mempty
+    let logWrite = modifyIORef ref . (<>) . show
+    let opts = defaultOptions { optLogWriter = logWrite}
+    _ <- runMigration con opts MigrationInitialization
+    readIORef ref >>= (`shouldBe` "Right \"Initializing schema\"")
 
-    where
-        q = "create table t1 (c1 varchar);"
+  where
+    q = "create table t1 (c1 varchar);"
 

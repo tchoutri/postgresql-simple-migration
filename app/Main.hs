@@ -12,38 +12,40 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main (
-    main
-    ) where
+module Main
+  ( main
+  ) where
 
 import           Control.Exception
-import qualified Data.ByteString                      as BS (ByteString)
-import qualified Data.ByteString.Char8                as BS8 (pack)
-import           Database.PostgreSQL.Simple           (SqlError (..),
-                                                       connectPostgreSQL,
-                                                       withTransaction)
-import           Database.PostgreSQL.Simple.Migration (MigrationCommand (..),
-                                                       MigrationOptions (..),
-                                                       MigrationResult (..),
-                                                       Verbosity (..),
-                                                       runMigration,
-                                                       defaultOptions)
-import           System.Environment                   (getArgs)
-import           System.Exit                          (exitFailure, exitSuccess)
-import           System.IO                            (Handle, hPutStrLn,
-                                                       stdout, stderr)
+import qualified Data.ByteString as BS (ByteString)
+import qualified Data.ByteString.Char8 as BS8 (pack)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Database.PostgreSQL.Simple ( SqlError (..)
+                                            , connectPostgreSQL
+                                            , withTransaction
+                                            )
+import           Database.PostgreSQL.Simple.Migration ( MigrationCommand (..)
+                                                      , MigrationOptions (..)
+                                                      , MigrationResult (..)
+                                                      , Verbosity (..)
+                                                      , defaultOptions
+                                                      , runMigration
+                                                      )
+import           System.Environment (getArgs)
+import           System.Exit (exitFailure, exitSuccess)
+import           System.IO (Handle, hPutStrLn, stdout, stderr)
 
-import qualified Data.Text                            as T
-import qualified Data.Text.Encoding                   as T
 
 main :: IO ()
 main = getArgs >>= \case
-    "-h":_ ->
-        printUsage stdout
-    "-q":xs ->
-        ppException $ run (parseCommand xs) False
-    xs ->
-        ppException $ run (parseCommand xs) True
+  "-h":_ ->
+    printUsage stdout
+  "-q":xs ->
+    ppException $ run (parseCommand xs) False
+  xs ->
+    ppException $ run (parseCommand xs) True
+
 
 -- | Pretty print postgresql-simple exceptions to see whats going on
 ppException :: IO a -> IO a
@@ -53,58 +55,58 @@ ppException a = catch a ehandler
     bsToString = T.unpack . T.decodeUtf8
     pSqlError e = mapM_ (hPutStrLn stderr)
                   [ "SqlError:"
-                  , "  sqlState: "
-                  , bsToString $ sqlState e
-                  , "  sqlExecStatus: "
-                  , show $ sqlExecStatus e
-                  , "  sqlErrorMsg: "
-                  , bsToString $ sqlErrorMsg e
-                  , "  sqlErrorDetail: "
-                  , bsToString $ sqlErrorDetail e
-                  , "  sqlErrorHint: "
-                  , bsToString $ sqlErrorHint e
+                  , "  sqlState: ", bsToString $ sqlState e
+                  , "  sqlExecStatus: ", show $ sqlExecStatus e
+                  , "  sqlErrorMsg: ", bsToString $ sqlErrorMsg e
+                  , "  sqlErrorDetail: ", bsToString $ sqlErrorDetail e
+                  , "  sqlErrorHint: ", bsToString $ sqlErrorHint e
                   ]
 
-run :: Maybe Command -> Bool-> IO ()
+run
+  :: Maybe Command
+  -> Bool
+  -> IO ()
 run Nothing _ = printUsage stderr >> exitFailure
 run (Just cmd) verbose =
-    handleResult =<< case cmd of
-        Initialize url tableName -> do
-            con <- connectPostgreSQL (BS8.pack url)
-            let opts = defaultOptions
-                 { optTableName = tableName
-                 , optVerbose = if verbose then Verbose else Quiet
-                 }
-            withTransaction con $ runMigration con opts MigrationInitialization
+  handleResult =<< case cmd of
+    Initialize url tableName -> do
+      con <- connectPostgreSQL (BS8.pack url)
+      let opts = defaultOptions
+           { optTableName = tableName
+           , optVerbose = if verbose then Verbose else Quiet
+           }
+      withTransaction con $ runMigration con opts MigrationInitialization
 
-        Migrate url dir tableName -> do
-            con <- connectPostgreSQL (BS8.pack url)
-            let opts = defaultOptions
-                 { optTableName = tableName
-                 , optVerbose = if verbose then Verbose else Quiet
-                 }
-            withTransaction con $ runMigration con opts $ MigrationDirectory dir
+    Migrate url dir tableName -> do
+      con <- connectPostgreSQL (BS8.pack url)
+      let opts = defaultOptions
+           { optTableName = tableName
+           , optVerbose = if verbose then Verbose else Quiet
+           }
+      withTransaction con $ runMigration con opts $ MigrationDirectory dir
 
-        Validate url dir tableName -> do
-            con <- connectPostgreSQL $ BS8.pack url
-            let opts = defaultOptions
-                 { optTableName = tableName
-                 , optVerbose = if verbose then Verbose else Quiet
-                 }
-            withTransaction con $ runMigration con opts $ MigrationValidation (MigrationDirectory dir)
+    Validate url dir tableName -> do
+      con <- connectPostgreSQL $ BS8.pack url
+      let opts = defaultOptions
+           { optTableName = tableName
+           , optVerbose = if verbose then Verbose else Quiet
+           }
+      withTransaction con $ runMigration con opts $ MigrationValidation (MigrationDirectory dir)
 
-    where
-        handleResult MigrationSuccess   = exitSuccess
-        handleResult (MigrationError _) = exitFailure
+  where
+    handleResult MigrationSuccess = exitSuccess
+    handleResult (MigrationError _) = exitFailure
+
 
 parseCommand :: [String] -> Maybe Command
-parseCommand ("init":url:tableName:_)         = Just (Initialize url (BS8.pack tableName))
-parseCommand ("migrate":url:dir:tableName:_)  = Just (Migrate url dir (BS8.pack tableName))
+parseCommand ("init":url:tableName:_) = Just (Initialize url (BS8.pack tableName))
+parseCommand ("migrate":url:dir:tableName:_) = Just (Migrate url dir (BS8.pack tableName))
 parseCommand ("validate":url:dir:tableName:_) = Just (Validate url dir (BS8.pack tableName))
-parseCommand ("init":url:_)         = Just (Initialize url "schema_migrations")
-parseCommand ("migrate":url:dir:_)  = Just (Migrate url dir "schema_migrations")
+parseCommand ("init":url:_) = Just (Initialize url "schema_migrations")
+parseCommand ("migrate":url:dir:_) = Just (Migrate url dir "schema_migrations")
 parseCommand ("validate":url:dir:_) = Just (Validate url dir "schema_migrations")
-parseCommand _                      = Nothing
+parseCommand _ = Nothing
+
 
 printUsage :: Handle -> IO ()
 printUsage h = do
@@ -139,8 +141,8 @@ printUsage h = do
     hPutStrLn h "      syntax. Detailled information is available here:"
     hPutStrLn h "      <http://www.postgresql.org/docs/9.3/static/libpq-connect.html>"
 
+
 data Command
-    = Initialize String BS.ByteString
-    | Migrate String FilePath BS.ByteString
-    | Validate String FilePath BS.ByteString
-    deriving (Show, Eq, Read, Ord)
+  = Initialize String BS.ByteString
+  | Migrate String FilePath BS.ByteString
+  | Validate String FilePath BS.ByteString
