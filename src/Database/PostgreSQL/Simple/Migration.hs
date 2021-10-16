@@ -159,8 +159,8 @@ executeMigration con opts name contents = do
       void $ execute con q (name, checksum)
       when (verbose opts) $ optLogWriter opts $ Right ("Execute:\t" <> fromString name)
       pure MigrationSuccess
-    ScriptModified { actual, expected } -> do
-      when (verbose opts) $ optLogWriter opts $ Left ("Fail:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage expected actual)
+    ScriptModified eva -> do
+      when (verbose opts) $ optLogWriter opts $ Left ("Fail:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage eva)
       pure (MigrationError name)
   where
     q = "insert into " <> Query (optTableName opts) <> "(filename, checksum) values(?, ?)"
@@ -216,8 +216,8 @@ executeValidation con opts cmd = case cmd of
         ScriptNotExecuted -> do
           when (verbose opts) $ optLogWriter opts (Left $ "Missing:\t" <> fromString name)
           pure (MigrationError $ "Missing: " <> name)
-        ScriptModified { expected, actual } -> do
-          when (verbose opts) $ optLogWriter opts (Left $ "Checksum mismatch:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage expected actual)
+        ScriptModified eva -> do
+          when (verbose opts) $ optLogWriter opts (Left $ "Checksum mismatch:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage eva)
           pure (MigrationError $ "Checksum mismatch: " <> name)
 
     goScripts path xs = sequenceMigrations (goScript path <$> xs)
@@ -237,10 +237,7 @@ checkScript con opts name fileChecksum =
     Only dbChecksum:_ | fileChecksum == dbChecksum ->
       pure ScriptOk
     Only dbChecksum:_ ->
-      pure $ ScriptModified
-        { expected = dbChecksum
-        , actual = fileChecksum
-        }
+      pure $ ScriptModified (ExpectedVsActual {evaExpected = dbChecksum, evaActual = fileChecksum})
   where
     q = mconcat
         [ "select checksum from " <> Query (optTableName opts) <> " "
@@ -288,25 +285,25 @@ instance Monoid MigrationCommand where
   mempty = MigrationCommands []
   mappend = (<>)
 
---data ExpectedVsActual a = ExpectedVsActual
---  { evaExpected :: !a
---  , evaActual :: !a
---  }
+data ExpectedVsActual a = ExpectedVsActual
+  { evaExpected :: !a
+  , evaActual :: !a
+  } deriving (Show)
 
 -- | A sum-type denoting the result of a single migration.
 data CheckScriptResult
   = ScriptOk
   -- ^ The script has already been executed and the checksums match.
   -- This is good.
-  | ScriptModified { expected :: Checksum, actual :: Checksum }
+  | ScriptModified (ExpectedVsActual Checksum)
   -- ^ The script has already been executed and there is a checksum
   -- mismatch. This is bad.
   | ScriptNotExecuted
   -- ^ The script has not been executed, yet. This is good.
-  deriving (Show, Eq, Read, Ord)
+  deriving (Show)
 
-scriptModifiedErrorMessage :: Checksum -> Checksum -> T.Text
-scriptModifiedErrorMessage expected actual =
+scriptModifiedErrorMessage :: ExpectedVsActual Checksum -> T.Text
+scriptModifiedErrorMessage (ExpectedVsActual expected actual) =
   "expected: " <> fromString (show expected) <> "\nhash was: " <> fromString (show actual)
 
 -- | A sum-type denoting the result of a migration.
