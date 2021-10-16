@@ -38,7 +38,8 @@ library
   import:                 common-options
   import:                 common-ghc-options
   exposed-modules:        Database.PostgreSQL.Simple.Migration
-                          Database.PostgreSQL.Simple.Util
+                        , Database.PostgreSQL.Simple.Util
+                        , Paths_postgresql_simple_migration
   hs-source-dirs:         src
   default-language:       Haskell2010
   build-depends:          base                        >= 4.9      && < 5.0

@@ -33,10 +33,12 @@ import           Database.PostgreSQL.Simple.Migration ( MigrationCommand (..)
                                                       , defaultOptions
                                                       , runMigration
                                                       )
+import           Data.Version (showVersion)
 import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (Handle, hPutStrLn, stdout, stderr)
 
+import qualified Paths_postgresql_simple_migration as P
 
 main :: IO ()
 main =  do
@@ -84,6 +86,7 @@ run
 run Nothing _ _ = printUsage stderr >> exitFailure
 run (Just cmd) verbose trnControl = do
   when (verbose == Verbose) $ do
+    putStrLn $ "postgresql-simple-migration Version: " <> showVersion P.version
     putStrLn $ "Verbosity: " <> show verbose
     putStrLn $ "Transactions: " <> show trnControl
 
