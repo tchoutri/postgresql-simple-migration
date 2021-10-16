@@ -42,7 +42,7 @@ library
     hs-source-dirs:         src
     default-language:       Haskell2010
     build-depends:          base                        >= 4.9      && < 5.0,
-                            base64-bytestring           >= 1.0      && < 1.2,
+                            base64-bytestring           >= 1.0      && < 1.3,
                             bytestring                  >= 0.10     && < 0.11,
                             cryptohash                  >= 0.11     && < 0.12,
                             directory                   >= 1.2      && < 1.4,
@@ -59,7 +59,7 @@ executable migrate
     default-language:       Haskell2010
     build-depends:          postgresql-simple-migration,
                             base                        >= 4.9      && < 5.0,
-                            base64-bytestring           >= 1.0      && < 1.2,
+                            base64-bytestring           >= 1.0      && < 1.3,
                             bytestring                  >= 0.10     && < 0.11,
                             cryptohash                  >= 0.11     && < 0.12,
                             directory                   >= 1.2      && < 1.4,
