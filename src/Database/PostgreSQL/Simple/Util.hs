@@ -16,10 +16,14 @@ module Database.PostgreSQL.Simple.Util
     , withTransactionRolledBack
     ) where
 
-import           Control.Exception          (finally)
-import           Database.PostgreSQL.Simple (Connection, Only (..), begin,
-                                             query, rollback)
-import           GHC.Int                    (Int64)
+import           Control.Exception          ( finally )
+import           Database.PostgreSQL.Simple ( Connection
+                                            , Only (..)
+                                            , begin
+                                            , query
+                                            , rollback
+                                            )
+import           GHC.Int                    ( Int64 )
 
 -- | Checks if the table with the given name exists in the database.
 existsTable :: Connection -> String -> IO Bool

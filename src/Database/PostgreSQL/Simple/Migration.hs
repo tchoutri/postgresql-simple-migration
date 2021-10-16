@@ -11,9 +11,6 @@
 --
 -- For usage, see Readme.markdown.
 
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -22,11 +19,11 @@
 module Database.PostgreSQL.Simple.Migration
     (
     -- * Migration actions
-      runMigration'
-    , runMigration
+      --runMigration'
+     runMigration
     , runMigrationA
     , runMigrations
-    , runMigrations'
+    --, runMigrations'
     , runMigrationsA
     , sequenceMigrations
 
@@ -48,33 +45,32 @@ module Database.PostgreSQL.Simple.Migration
     , SchemaMigration(..)
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative                ((<$>), (<*>))
-#endif
 import           Control.Monad                      (void, when)
 import qualified Crypto.Hash.MD5                    as MD5 (hash)
 import qualified Data.ByteString                    as BS (ByteString, readFile)
-import qualified Data.ByteString.Char8              as BS8 (unpack)
+--import qualified Data.ByteString.Char8              as BS8 (unpack)
 import qualified Data.ByteString.Base64             as B64 (encode)
 import qualified Data.Text                          as T
 import qualified Data.Text.IO                       as T (putStrLn, hPutStrLn)
 import           Data.String                        (fromString)
-import           Data.Foldable                      (Foldable)
+--import           Data.Foldable                      (Foldable)
 import           Data.List                          (isPrefixOf, sort)
-import           Data.Traversable                   (Traversable)
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid                        (Monoid (..))
-#endif
+--import           Data.Traversable                   (Traversable)
 import           Data.Time                          (LocalTime)
-import           Database.PostgreSQL.Simple         (Connection, Only (..),
-                                                     execute, execute_, query,
-                                                     query_)
+import           Database.PostgreSQL.Simple         ( Connection
+                                                    , Only (..)
+                                                    , execute
+                                                    , execute_
+                                                    , query
+                                                    , query_
+                                                    )
 import           Database.PostgreSQL.Simple.FromRow (FromRow (..), field)
 import           Database.PostgreSQL.Simple.ToField (ToField (..))
 import           Database.PostgreSQL.Simple.ToRow   (ToRow (..))
 import           Database.PostgreSQL.Simple.Types   (Query (..))
 import           Database.PostgreSQL.Simple.Util    (existsTable)
 import           System.Directory                   (getDirectoryContents)
+import           System.FilePath                    ((</>))
 import           System.IO                          (stderr)
 
 defaultLogWrite :: Either T.Text T.Text -> IO ()
@@ -92,10 +88,11 @@ runMigration = runMigrationA defaultLogWrite
 --runMigration (MigrationContext cmd verbose con) = 
 --  runMigration' (MigrationContext' cmd verbose con "schema_migrations")
 
+  {-
 runMigration' :: MigrationContext' -> IO (MigrationResult String)
 runMigration' (MigrationContext' cmd verbose con tableName) = case cmd of
     MigrationInitialization ->
-        initializeSchema con tableName verbose >> return MigrationSuccess
+        initializeSchema con tableName verbose >> pure MigrationSuccess
     MigrationDirectory path ->
         executeDirectoryMigration con tableName verbose path
     MigrationScript name contents ->
@@ -106,6 +103,9 @@ runMigration' (MigrationContext' cmd verbose con tableName) = case cmd of
         executeValidation con tableName verbose validationCmd
     MigrationCommands commands ->
         runMigrations' verbose con commands tableName
+-}
+
+
 -- | A version of 'runMigration' which gives you control of where the log
 -- messages are sent to.
 runMigrationA
@@ -116,7 +116,7 @@ runMigrationA
     -> IO (MigrationResult String)
 runMigrationA logWrite (MigrationContext cmd verbose con) = case cmd of
     MigrationInitialization ->
-        initializeSchema logWrite con verbose >> return MigrationSuccess
+        initializeSchema logWrite con verbose >> pure MigrationSuccess
     MigrationDirectory path ->
         executeDirectoryMigration logWrite con verbose path
     MigrationScript name contents ->
@@ -214,7 +214,7 @@ executeDirectoryMigration logWrite con verbose dir =
     where
         go fs = sequenceMigrations (executeMigrationFile <$> fs)
         executeMigrationFile f =
-            BS.readFile (dir ++ "/" ++ f) >>=
+            BS.readFile (dir </> f) >>=
                 executeMigration logWrite con verbose f
 {-
 xecuteDirectoryMigration :: Connection -> BS.ByteString -> Bool -> FilePath -> IO (MigrationResult String)
@@ -222,7 +222,7 @@ executeDirectoryMigration con tableName verbose dir =
     scriptsInDirectory dir >>= go
     where
         go fs = sequenceMigrations (executeMigrationFile <$> fs)
-        executeMigrationFile f = executeMigration con tableName verbose f =<< BS.readFile (dir ++ "/" ++ f)
+        executeMigrationFile f = executeMigration con tableName verbose f =<< BS.readFile (dir </> f)
 -}
 
 -- | Lists all files in the given 'FilePath' 'dir' in alphabetical order.
@@ -245,17 +245,15 @@ executeMigration logWrite con verbose name contents = do
     checkScript con name checksum >>= \case
         ScriptOk -> do
             when verbose $ logWrite $ Right $ "Ok:\t" <> fromString name
-            return MigrationSuccess
+            pure MigrationSuccess
         ScriptNotExecuted -> do
             void $ execute_ con (Query contents)
             void $ execute con q (name, checksum)
-            when verbose $ logWrite $ Right $ "Execute:\t" <> fromString name
-            return MigrationSuccess
+            when verbose $ logWrite $ Right ("Execute:\t" <> fromString name)
+            pure MigrationSuccess
         ScriptModified { actual, expected } -> do
-            when verbose $ logWrite $ Left
-                $ "Fail:\t" <> fromString name
-                <> "\n" <> scriptModifiedErrorMessage expected actual
-            return (MigrationError name)
+            when verbose $ logWrite $ Left ("Fail:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage expected actual)
+            pure (MigrationError name)
     where
         q = "insert into schema_migrations(filename, checksum) values(?, ?)"
 {-
@@ -325,7 +323,7 @@ executeValidation
     -> IO (MigrationResult String)
 executeValidation logWrite con verbose cmd = case cmd of
     MigrationInitialization ->
-        existsTable con "schema_migrations" >>= \r -> return $ if r
+        existsTable con "schema_migrations" >>= \r -> pure $ if r
             then MigrationSuccess
             else MigrationError "No such table: schema_migrations"
     MigrationDirectory path ->
@@ -335,7 +333,7 @@ executeValidation logWrite con verbose cmd = case cmd of
     MigrationFile name path ->
         validate name =<< BS.readFile path
     MigrationValidation _ ->
-        return MigrationSuccess
+        pure MigrationSuccess
     MigrationCommands cs ->
         sequenceMigrations (executeValidation logWrite con verbose <$> cs)
     where
@@ -343,19 +341,17 @@ executeValidation logWrite con verbose cmd = case cmd of
             checkScript con name (md5Hash contents) >>= \case
                 ScriptOk -> do
                     when verbose $ logWrite $ Right $ "Ok:\t" <> fromString name
-                    return MigrationSuccess
+                    pure MigrationSuccess
                 ScriptNotExecuted -> do
                     when verbose $ logWrite $ Left $
                         "Missing:\t" <> fromString name
-                    return (MigrationError $ "Missing: " ++ name)
+                    pure (MigrationError $ "Missing: " <> name)
                 ScriptModified { expected, actual } -> do
-                    when verbose $ logWrite $ Left
-                        $ "Checksum mismatch:\t" <> fromString name
-                        <> "\n" <> scriptModifiedErrorMessage expected actual
-                    return (MigrationError $ "Checksum mismatch: " ++ name)
+                    when verbose $ logWrite (Left $ "Checksum mismatch:\t" <> fromString name <> "\n" <> scriptModifiedErrorMessage expected actual)
+                    pure (MigrationError $ "Checksum mismatch: " <> name)
 
         goScripts path xs = sequenceMigrations (goScript path <$> xs)
-        goScript path x = validate x =<< BS.readFile (path ++ "/" ++ x)
+        goScript path x = validate x =<< BS.readFile (path </> x)
 {-
 executeValidation :: Connection -> BS.ByteString -> Bool -> MigrationCommand -> IO (MigrationResult String)
 executeValidation con tableName' verbose cmd = 
@@ -391,15 +387,17 @@ executeValidation con tableName' verbose cmd =
                     pure (MigrationError $ "Checksum mismatch: " <> name)
 
         goScripts path xs = sequenceMigrations (goScript path <$> xs)
-        goScript path x = validate x =<< BS.readFile (path <> "/" <> x)
+        goScript path x = validate x =<< BS.readFile (path </> x)
+-}
+
 
 -- | Checks the status of the script with the given name 'name'.
 -- If the script has already been executed, the checksum of the script
 -- is compared against the one that was executed.
 -- If there is no matching script entry in the database, the script
 -- will be executed and its meta-information will be recorded.
-checkScript :: Connection -> BS.ByteString -> ScriptName -> Checksum -> IO CheckScriptResult
-checkScript con tableName name fileChecksum =
+checkScript :: Connection {- -> BS.ByteString-} -> ScriptName -> Checksum -> IO CheckScriptResult
+checkScript con {-tableName-} name fileChecksum =
     query con q (Only name) >>= \case
         [] ->
             pure ScriptNotExecuted
@@ -412,9 +410,16 @@ checkScript con tableName name fileChecksum =
                     })
     where
         q = mconcat
-            [ "select checksum from " `mappend` Query tableName `mappend` " "
+            --[ "select checksum from " <> Query tableName <> " "
+            [ "select checksum from schema_migrations "
             , "where filename = ? limit 1"
             ]
+
+---- | Log write function.
+--
+-- 'Either' indicates log level,
+-- 'Left' for an error message and 'Right' for an info message.
+type LogWrite = Either T.Text T.Text -> IO ()
 
 -- | Calculates the MD5 checksum of the provided bytestring in base64
 -- encoding.
@@ -469,9 +474,9 @@ data CheckScriptResult
     -- ^ The script has not been executed, yet. This is good.
     deriving (Show, Eq, Read, Ord)
 
-scriptModifiedErrorMessage :: Checksum -> Checksum -> [Char]
+scriptModifiedErrorMessage :: Checksum -> Checksum -> T.Text
 scriptModifiedErrorMessage expected actual =
-  "expected: " <> show expected <> "\nhash was: " <> show actual
+  "expected: " <> fromString (show expected) <> "\nhash was: " <> fromString (show actual)
 
 -- | A sum-type denoting the result of a migration.
 data MigrationResult a
