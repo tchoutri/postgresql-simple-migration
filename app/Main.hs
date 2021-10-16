@@ -23,9 +23,11 @@ import           Database.PostgreSQL.Simple           (SqlError (..),
                                                        connectPostgreSQL,
                                                        withTransaction)
 import           Database.PostgreSQL.Simple.Migration (MigrationCommand (..),
-                                                       MigrationContext' (..),
+                                                       MigrationOptions (..),
                                                        MigrationResult (..),
-                                                       runMigration')
+                                                       Verbosity (..),
+                                                       runMigration,
+                                                       defaultOptions)
 import           System.Environment                   (getArgs)
 import           System.Exit                          (exitFailure, exitSuccess)
 import           System.IO                            (Handle, hPutStrLn,
@@ -69,16 +71,28 @@ run (Just cmd) verbose =
     handleResult =<< case cmd of
         Initialize url tableName -> do
             con <- connectPostgreSQL (BS8.pack url)
-            withTransaction con $ runMigration' $ MigrationContext'
-                MigrationInitialization verbose con tableName
+            let opts = defaultOptions
+                 { optTableName = tableName
+                 , optVerbose = if verbose then Verbose else Quiet
+                 }
+            withTransaction con $ runMigration con opts MigrationInitialization
+
         Migrate url dir tableName -> do
             con <- connectPostgreSQL (BS8.pack url)
-            withTransaction con $ runMigration' $ MigrationContext'
-                (MigrationDirectory dir) verbose con tableName
+            let opts = defaultOptions
+                 { optTableName = tableName
+                 , optVerbose = if verbose then Verbose else Quiet
+                 }
+            withTransaction con $ runMigration con opts $ MigrationDirectory dir
+
         Validate url dir tableName -> do
-            con <- connectPostgreSQL (BS8.pack url)
-            withTransaction con $ runMigration' $ MigrationContext'
-                (MigrationValidation (MigrationDirectory dir)) verbose con tableName
+            con <- connectPostgreSQL $ BS8.pack url
+            let opts = defaultOptions
+                 { optTableName = tableName
+                 , optVerbose = if verbose then Verbose else Quiet
+                 }
+            withTransaction con $ runMigration con opts $ MigrationValidation (MigrationDirectory dir)
+
     where
         handleResult MigrationSuccess   = exitSuccess
         handleResult (MigrationError _) = exitFailure
