@@ -14,8 +14,6 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
--- {- # LANGUAGE NamedFieldPuns  # -}
-{-# LANGUAGE RankNTypes #-}
 
 module Database.PostgreSQL.Simple.Migration
     (
@@ -342,15 +340,14 @@ data Verbosity
 
 -- | Determines how transactions are handled
 -- Its is recommened to use transaction when running migrations
--- Certain actions require a transaction per script, if you are doing this use TransactionPerStep or TransactionPerStep'
--- If you want a single transaction for all migrations use TransactionPerRun or TransactionPerRun'
+-- Certain actions require a transaction per script, if you are doing this use TransactionPerStep
+-- If you want a single transaction for all migrations use TransactionPerRun
 -- If you do not want a transaction, or are using an existing transaction then use NoNewTransaction
-data TransactionControl a
+data TransactionControl
   = NoNewTransaction -- ^ No new transaction will be started. Up to the caller to decide if the run is in a transaction or not
   | TransactionPerRun -- ^ Call 'withTransaction' once for the entire 'MigrationCommand'
   | TransactionPerStep -- ^ Call 'withTransaction' once for each step in a 'MigrationCommand' (i.e. new transaction per script)
-  | TransactionPerRun' (Connection -> IO a -> IO a)  -- ^ Same as 'TransactionPerRun' but the caller can decide how the transaction is initiated
-  | TransactionPerStep' (Connection -> IO a -> IO a)  -- ^ Same as 'TransactionPerStep' but the caller can decide how the transaction is initiated
+  deriving (Show)
 
 
 data MigrationOptions = MigrationOptions
@@ -361,7 +358,7 @@ data MigrationOptions = MigrationOptions
   , optLogWriter :: !(Either T.Text T.Text -> IO ())
   -- ^ Logger. 'Either' indicates log level,
   -- 'Left' for an error message and 'Right' for an info message.
-  , optTransactionControl :: !(forall a. TransactionControl a)
+  , optTransactionControl :: !TransactionControl
   -- ^ If/when transactions should be started
   }
 
@@ -384,8 +381,6 @@ doRunTransaction opts con act =
     NoNewTransaction -> act
     TransactionPerRun -> withTransaction con act
     TransactionPerStep -> act
-    TransactionPerRun' fn -> fn con act
-    TransactionPerStep' _ -> act
 
 
 doStepTransaction :: MigrationOptions -> Connection -> IO a -> IO a
@@ -394,8 +389,6 @@ doStepTransaction opts con act =
     NoNewTransaction -> act
     TransactionPerRun -> act
     TransactionPerStep -> withTransaction con act
-    TransactionPerRun' _ -> act
-    TransactionPerStep' fn -> fn con act
 
 
 -- | Produces a list of all executed 'SchemaMigration's in the default schema_migrations table

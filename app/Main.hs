@@ -17,6 +17,7 @@ module Main
   ) where
 
 import           Control.Exception
+import           Control.Monad (when)
 import qualified Data.ByteString as BS (ByteString)
 import qualified Data.ByteString.Char8 as BS8 (pack)
 import qualified Data.Text as T
@@ -38,13 +39,26 @@ import           System.IO (Handle, hPutStrLn, stdout, stderr)
 
 
 main :: IO ()
-main = getArgs >>= \case
-  "-h":_ ->
-    printUsage stdout
-  "-q":xs ->
-    ppException $ run (parseCommand xs) False
-  xs ->
-    ppException $ run (parseCommand xs) True
+main =  do
+  args <- getArgs
+  case collectArgs args (Verbose, TransactionPerRun) of
+    ArgPrintUsage -> printUsage stdout
+    ArgCommand (verbose, trn, rest) -> ppException $ run (parseCommand rest) verbose trn
+
+
+data ArgAction
+  = ArgPrintUsage
+  | ArgCommand (Verbosity, TransactionControl, [[Char]])
+
+
+collectArgs :: [[Char]] -> (Verbosity, TransactionControl) -> ArgAction
+collectArgs [] (v, t) = ArgCommand (v, t, [])
+collectArgs (x:xs) (v, t) =
+  case x of
+    "-h" -> ArgPrintUsage
+    "-q" -> collectArgs xs (Quiet, t)
+    "-t" -> collectArgs xs (v, TransactionPerStep)
+    _ -> ArgCommand (v, t, x:xs)
 
 
 -- | Pretty print postgresql-simple exceptions to see whats going on
@@ -64,17 +78,22 @@ ppException a = catch a ehandler
 
 run
   :: Maybe Command
-  -> Bool
+  -> Verbosity
+  -> TransactionControl
   -> IO ()
-run Nothing _ = printUsage stderr >> exitFailure
-run (Just cmd) verbose =
+run Nothing _ _ = printUsage stderr >> exitFailure
+run (Just cmd) verbose trnControl = do
+  when (verbose == Verbose) $ do
+    putStrLn $ "Verbosity: " <> show verbose
+    putStrLn $ "Transactions: " <> show trnControl
+
   handleResult =<< case cmd of
     Initialize url tableName -> do
       con <- connectPostgreSQL (BS8.pack url)
       let opts = defaultOptions
            { optTableName = tableName
-           , optVerbose = if verbose then Verbose else Quiet
-           , optTransactionControl = TransactionPerRun
+           , optVerbose = verbose
+           , optTransactionControl = trnControl
            }
       runMigration con opts MigrationInitialization
 
@@ -82,8 +101,8 @@ run (Just cmd) verbose =
       con <- connectPostgreSQL (BS8.pack url)
       let opts = defaultOptions
            { optTableName = tableName
-           , optVerbose = if verbose then Verbose else Quiet
-           , optTransactionControl = TransactionPerRun
+           , optVerbose = verbose
+           , optTransactionControl = trnControl
            }
       runMigration con opts $ MigrationDirectory dir
 
@@ -91,8 +110,8 @@ run (Just cmd) verbose =
       con <- connectPostgreSQL $ BS8.pack url
       let opts = defaultOptions
            { optTableName = tableName
-           , optVerbose = if verbose then Verbose else Quiet
-           , optTransactionControl = TransactionPerRun
+           , optVerbose = verbose
+           , optTransactionControl = trnControl
            }
       runMigration con opts $ MigrationValidation (MigrationDirectory dir)
 
@@ -117,6 +136,8 @@ printUsage h = do
     hPutStrLn h "  Options:"
     hPutStrLn h "      -h          Print help text"
     hPutStrLn h "      -q          Enable quiet mode"
+    hPutStrLn h "      -t          Enable transaction per script"
+    hPutStrLn h "                   defauts to a single transaction for the entire migration(s)"
     hPutStrLn h "  Commands:"
     hPutStrLn h "      init <con> {migrations table name}"
     hPutStrLn h "                  Initialize the database. Required to be run"
