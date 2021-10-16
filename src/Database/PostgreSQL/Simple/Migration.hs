@@ -14,7 +14,8 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NamedFieldPuns    #-}
+-- {- # LANGUAGE NamedFieldPuns  # -}
+{-# LANGUAGE RankNTypes #-}
 
 module Database.PostgreSQL.Simple.Migration
     (
@@ -30,6 +31,7 @@ module Database.PostgreSQL.Simple.Migration
     , MigrationCommand(..)
     , MigrationResult(..)
     , ScriptName
+    , TransactionControl(..)
     , Verbosity(..)
 
     -- * Migration result actions
@@ -57,6 +59,7 @@ import           Database.PostgreSQL.Simple ( Connection
                                             , execute_
                                             , query
                                             , query_
+                                            , withTransaction
                                             )
 import           Database.PostgreSQL.Simple.FromRow (FromRow (..), field)
 import           Database.PostgreSQL.Simple.ToField (ToField (..))
@@ -72,10 +75,27 @@ import           System.IO (stderr)
 -- Returns 'MigrationSuccess' if the provided 'MigrationCommand' executes
 -- without error. If an error occurs, execution is stopped and
 -- a 'MigrationError' is returned.
---
--- It is recommended to wrap 'runMigration' inside a database transaction.
 runMigration :: Connection -> MigrationOptions -> MigrationCommand -> IO (MigrationResult String)
-runMigration con opts cmd =
+runMigration con opts cmd = runMigrations' True con opts [cmd]
+
+
+-- | Execute a sequence of migrations
+--
+-- Returns 'MigrationSuccess' if all of the provided 'MigrationCommand's
+-- execute without error. If an error occurs, execution is stopped and the
+-- 'MigrationError' is returned.
+runMigrations
+  :: Connection -- ^ The postgres connection to use
+  -> MigrationOptions -- ^ The options for this migration
+  -> [MigrationCommand] -- ^ The commands to run
+  -> IO (MigrationResult String)
+runMigrations = runMigrations' True
+
+
+
+-- | Implements runMigration. Ensure that 'doRunTransaction' is only called on the first run
+runMigration' :: Connection -> MigrationOptions -> MigrationCommand -> IO (MigrationResult String)
+runMigration' con opts cmd =
   case cmd of
     MigrationInitialization ->
       initializeSchema con opts >> pure MigrationSuccess
@@ -88,23 +108,23 @@ runMigration con opts cmd =
     MigrationValidation validationCmd ->
       executeValidation con opts validationCmd
     MigrationCommands commands ->
-      runMigrations con opts commands
+      runMigrations' False con opts commands
 
 
--- | Execute a sequence of migrations
---
--- Returns 'MigrationSuccess' if all of the provided 'MigrationCommand's
--- execute without error. If an error occurs, execution is stopped and the
--- 'MigrationError' is returned.
---
--- It is recommended to wrap 'runMigrations' inside a database transaction.
-runMigrations
-  :: Connection -- ^ The postgres connection to use
+-- | Implements runMigrations
+runMigrations'
+  :: Bool -- ^ Is this the first/top-level call
+  -> Connection -- ^ The postgres connection to use
   -> MigrationOptions -- ^ The options for this migration
   -> [MigrationCommand] -- ^ The commands to run
   -> IO (MigrationResult String)
-runMigrations con opts commands =
-  sequenceMigrations [runMigration con opts c | c <- commands]
+runMigrations' isFirst con opts commands =
+  if isFirst
+    then doRunTransaction opts con go
+    else go
+  where
+    go = sequenceMigrations [runMigration' con opts c | c <- commands]
+
 
 
 -- | Run a sequence of contexts, stopping on the first failure
@@ -148,7 +168,7 @@ executeMigration
   -> ScriptName
   -> BS.ByteString
   -> IO (MigrationResult String)
-executeMigration con opts name contents = do
+executeMigration con opts name contents = doStepTransaction opts con $ do
   let checksum = md5Hash contents
   checkScript con opts name checksum >>= \case
     ScriptOk -> do
@@ -170,7 +190,7 @@ executeMigration con opts name contents = do
 initializeSchema :: Connection -> MigrationOptions -> IO ()
 initializeSchema con opts = do
   when (verbose opts) $ optLogWriter opts $ Right "Initializing schema"
-  void . execute_ con $ mconcat
+  void . doStepTransaction opts con . execute_ con $ mconcat
       [ "create table if not exists " <> Query (optTableName opts) <> " "
       , "( filename varchar(512) not null"
       , ", checksum varchar(32) not null"
@@ -192,21 +212,22 @@ executeValidation
   -> MigrationOptions
   -> MigrationCommand
   -> IO (MigrationResult String)
-executeValidation con opts cmd = case cmd of
-  MigrationInitialization ->
-    existsTable con (BS8.unpack $ optTableName opts) >>= \r -> pure $ if r
-      then MigrationSuccess
-      else MigrationError ("No such table: " <> BS8.unpack (optTableName opts))
-  MigrationDirectory path ->
-    scriptsInDirectory path >>= goScripts path
-  MigrationScript name contents ->
-    validate name contents
-  MigrationFile name path ->
-    validate name =<< BS.readFile path
-  MigrationValidation _ ->
-    pure MigrationSuccess
-  MigrationCommands cs ->
-    sequenceMigrations (executeValidation con opts <$> cs)
+executeValidation con opts cmd = doStepTransaction opts con $
+  case cmd of
+    MigrationInitialization ->
+      existsTable con (BS8.unpack $ optTableName opts) >>= \r -> pure $ if r
+        then MigrationSuccess
+        else MigrationError ("No such table: " <> BS8.unpack (optTableName opts))
+    MigrationDirectory path ->
+      scriptsInDirectory path >>= goScripts path
+    MigrationScript name contents ->
+      validate name contents
+    MigrationFile name path ->
+      validate name =<< BS.readFile path
+    MigrationValidation _ ->
+      pure MigrationSuccess
+    MigrationCommands cs ->
+      sequenceMigrations (executeValidation con opts <$> cs)
   where
     validate name contents =
       checkScript con opts name (md5Hash contents) >>= \case
@@ -319,15 +340,29 @@ data Verbosity
   | Quiet
   deriving (Show, Eq)
 
+-- | Determines how transactions are handled
+-- Its is recommened to use transaction when running migrations
+-- Certain actions require a transaction per script, if you are doing this use TransactionPerStep or TransactionPerStep'
+-- If you want a single transaction for all migrations use TransactionPerRun or TransactionPerRun'
+-- If you do not want a transaction, or are using an existing transaction then use NoNewTransaction
+data TransactionControl a
+  = NoNewTransaction -- ^ No new transaction will be started. Up to the caller to decide if the run is in a transaction or not
+  | TransactionPerRun -- ^ Call 'withTransaction' once for the entire 'MigrationCommand'
+  | TransactionPerStep -- ^ Call 'withTransaction' once for each step in a 'MigrationCommand' (i.e. new transaction per script)
+  | TransactionPerRun' (Connection -> IO a -> IO a)  -- ^ Same as 'TransactionPerRun' but the caller can decide how the transaction is initiated
+  | TransactionPerStep' (Connection -> IO a -> IO a)  -- ^ Same as 'TransactionPerStep' but the caller can decide how the transaction is initiated
+
 
 data MigrationOptions = MigrationOptions
   { optVerbose :: !Verbosity
   -- ^ Verbosity of the library.
   , optTableName :: !BS.ByteString
   -- ^ The name of the table that stores the migrations, usually "schema_migrations"
-  , optLogWriter :: Either T.Text T.Text -> IO ()
+  , optLogWriter :: !(Either T.Text T.Text -> IO ())
   -- ^ Logger. 'Either' indicates log level,
   -- 'Left' for an error message and 'Right' for an info message.
+  , optTransactionControl :: !(forall a. TransactionControl a)
+  -- ^ If/when transactions should be started
   }
 
 defaultOptions :: MigrationOptions
@@ -336,10 +371,32 @@ defaultOptions =
     { optVerbose = Quiet
     , optTableName = "schema_migrations"
     , optLogWriter = either (T.hPutStrLn stderr) T.putStrLn
+    , optTransactionControl = TransactionPerRun
     }
 
 verbose :: MigrationOptions -> Bool
 verbose o = optVerbose o == Verbose
+
+
+doRunTransaction :: MigrationOptions -> Connection -> IO a -> IO a
+doRunTransaction opts con act =
+  case optTransactionControl opts of
+    NoNewTransaction -> act
+    TransactionPerRun -> withTransaction con act
+    TransactionPerStep -> act
+    TransactionPerRun' fn -> fn con act
+    TransactionPerStep' _ -> act
+
+
+doStepTransaction :: MigrationOptions -> Connection -> IO a -> IO a
+doStepTransaction opts con act =
+  case optTransactionControl opts of
+    NoNewTransaction -> act
+    TransactionPerRun -> act
+    TransactionPerStep -> withTransaction con act
+    TransactionPerRun' _ -> act
+    TransactionPerStep' fn -> fn con act
+
 
 -- | Produces a list of all executed 'SchemaMigration's in the default schema_migrations table
 getMigrations :: Connection -> IO [SchemaMigration]

@@ -23,11 +23,11 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Database.PostgreSQL.Simple ( SqlError (..)
                                             , connectPostgreSQL
-                                            , withTransaction
                                             )
 import           Database.PostgreSQL.Simple.Migration ( MigrationCommand (..)
                                                       , MigrationOptions (..)
                                                       , MigrationResult (..)
+                                                      , TransactionControl (..)
                                                       , Verbosity (..)
                                                       , defaultOptions
                                                       , runMigration
@@ -74,24 +74,27 @@ run (Just cmd) verbose =
       let opts = defaultOptions
            { optTableName = tableName
            , optVerbose = if verbose then Verbose else Quiet
+           , optTransactionControl = TransactionPerRun
            }
-      withTransaction con $ runMigration con opts MigrationInitialization
+      runMigration con opts MigrationInitialization
 
     Migrate url dir tableName -> do
       con <- connectPostgreSQL (BS8.pack url)
       let opts = defaultOptions
            { optTableName = tableName
            , optVerbose = if verbose then Verbose else Quiet
+           , optTransactionControl = TransactionPerRun
            }
-      withTransaction con $ runMigration con opts $ MigrationDirectory dir
+      runMigration con opts $ MigrationDirectory dir
 
     Validate url dir tableName -> do
       con <- connectPostgreSQL $ BS8.pack url
       let opts = defaultOptions
            { optTableName = tableName
            , optVerbose = if verbose then Verbose else Quiet
+           , optTransactionControl = TransactionPerRun
            }
-      withTransaction con $ runMigration con opts $ MigrationValidation (MigrationDirectory dir)
+      runMigration con opts $ MigrationValidation (MigrationDirectory dir)
 
   where
     handleResult MigrationSuccess = exitSuccess
