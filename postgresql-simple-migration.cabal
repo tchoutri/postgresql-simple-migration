@@ -12,7 +12,7 @@ copyright:                  2014-2021, Andreas Meingast
 category:                   Database
 build-type:                 Simple
 description:                A PostgreSQL-simple schema migration utility
-tested-with:                GHC==9.0.1, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2
+tested-with:                GHC==9.0.1, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
 
 extra-source-files:         License
                             Readme.markdown
@@ -49,6 +49,7 @@ library
   exposed-modules:        Database.PostgreSQL.Simple.Migration
                         , Database.PostgreSQL.Simple.Util
                         , Paths_postgresql_simple_migration
+  autogen-modules:        Paths_postgresql_simple_migration
   hs-source-dirs:         src
   default-language:       Haskell2010
   build-depends:          base                        >= 4.9      && < 5.0
@@ -70,6 +71,7 @@ executable migrate
   ghc-options:            -threaded
   main-is:                Main.hs
   other-modules:          Paths_postgresql_simple_migration
+  autogen-modules:        Paths_postgresql_simple_migration
   hs-source-dirs:         app
   default-language:       Haskell2010
   build-depends:          postgresql-simple-migration
