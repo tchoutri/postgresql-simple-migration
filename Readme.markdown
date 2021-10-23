@@ -2,7 +2,8 @@
 
 Forked from [Andreas Meingast](https://github.com/ameingast/postgresql-simple-migration)
 
-[![Build Status](https://api.travis-ci.org/andrevdm/postgresql-simple-migration.png)](https://travis-ci.org/andrevdm/postgresql-simple-migration)
+[![GitHub CI](https://github.com/andrevdm/postgresql-simple-migration/workflows/CI/badge.svg)](https://github.com/andrevdm/postgresql-simple-migration/actions)
+
 
 Welcome to postgresql-simple-migrations, a tool for helping you with
 PostgreSQL schema migrations.
