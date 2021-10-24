@@ -19,6 +19,8 @@ import           Database.PostgreSQL.Simple.Migration (MigrationCommand (..),
                                                        MigrationOptions (..),
                                                        MigrationResult (..),
                                                        SchemaMigration (..),
+                                                       TransactionControl (..),
+                                                       Verbosity(..),
                                                        getMigrations,
                                                        runMigration,
                                                        defaultOptions)
@@ -38,11 +40,11 @@ migrationSpec con = describe "Migrations" $ do
     r `shouldBe` False
 
   it "validates an initialization on an empty database" $ do
-    r <- runMigration con defaultOptions (MigrationValidation MigrationInitialization)
+    r <- runMigration' (MigrationValidation MigrationInitialization)
     r `shouldBe` MigrationError "No such table: schema_migrations"
 
   it "initializes a database" $ do
-    r <- runMigration con defaultOptions MigrationInitialization
+    r <- runMigration' MigrationInitialization
     r `shouldBe` MigrationSuccess
 
   it "creates the schema_migrations table" $ do
@@ -50,7 +52,7 @@ migrationSpec con = describe "Migrations" $ do
     r `shouldBe` True
 
   it "executes a migration script" $ do
-    r <- runMigration con defaultOptions migrationScript
+    r <- runMigration' migrationScript
     r `shouldBe` MigrationSuccess
 
   it "creates the table from the executed script" $ do
@@ -58,15 +60,15 @@ migrationSpec con = describe "Migrations" $ do
     r `shouldBe` True
 
   it "skips execution of the same migration script" $ do
-    r <- runMigration con defaultOptions migrationScript
+    r <- runMigration' migrationScript
     r `shouldBe` MigrationSuccess
 
   it "reports an error on a different checksum for the same script" $ do
-    r <- runMigration con defaultOptions migrationScriptAltered
+    r <- runMigration' migrationScriptAltered
     r `shouldBe` MigrationError "test.sql"
 
   it "executes migration scripts inside a folder" $ do
-    r <- runMigration con defaultOptions migrationDir
+    r <- runMigration' migrationDir
     r `shouldBe` MigrationSuccess
 
   it "creates the table from the executed scripts" $ do
@@ -74,7 +76,7 @@ migrationSpec con = describe "Migrations" $ do
     r `shouldBe` True
 
   it "executes a file based migration script" $ do
-    r <- runMigration con defaultOptions migrationFile
+    r <- runMigration' migrationFile
     r `shouldBe` MigrationSuccess
 
   it "creates the table from the executed scripts" $ do
@@ -82,19 +84,19 @@ migrationSpec con = describe "Migrations" $ do
     r `shouldBe` True
 
   it "validates initialization" $ do
-    r <- runMigration con defaultOptions $ MigrationValidation MigrationInitialization
+    r <- runMigration' $ MigrationValidation MigrationInitialization
     r `shouldBe` MigrationSuccess
 
   it "validates an executed migration script" $ do
-    r <- runMigration con defaultOptions $ MigrationValidation migrationScript
+    r <- runMigration' $ MigrationValidation migrationScript
     r `shouldBe` MigrationSuccess
 
   it "validates all scripts inside a folder" $ do
-    r <- runMigration con defaultOptions $ MigrationValidation migrationDir
+    r <- runMigration' $ MigrationValidation migrationDir
     r `shouldBe` MigrationSuccess
 
   it "validates an executed migration file" $ do
-    r <- runMigration con defaultOptions $ MigrationValidation migrationFile
+    r <- runMigration' $ MigrationValidation migrationFile
     r `shouldBe` MigrationSuccess
 
   it "gets a list of executed migrations" $ do
@@ -104,10 +106,12 @@ migrationSpec con = describe "Migrations" $ do
   it "log can be redirected" $ do
     ref <- newIORef mempty
     let logWrite = modifyIORef ref . (<>) . show
-    let opts = defaultOptions { optLogWriter = logWrite}
+    let opts = defaultOptions{ optLogWriter = logWrite, optVerbose = Verbose, optTransactionControl = NoNewTransaction }
     _ <- runMigration con opts MigrationInitialization
     readIORef ref >>= (`shouldBe` "Right \"Initializing schema\"")
 
   where
     q = "create table t1 (c1 varchar);"
+    runMigration' =
+      runMigration con defaultOptions{optTransactionControl = NoNewTransaction}
 
