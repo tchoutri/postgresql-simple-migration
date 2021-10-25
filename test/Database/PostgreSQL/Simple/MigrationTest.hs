@@ -27,7 +27,7 @@ import           Database.PostgreSQL.Simple.Migration (MigrationCommand (..),
 import           Database.PostgreSQL.Simple.Util      (existsTable)
 import           Test.Hspec                           (Spec, describe, it, shouldBe)
 
-migrationSpec:: Connection -> Spec
+migrationSpec :: Connection -> Spec
 migrationSpec con = describe "Migrations" $ do
   let
     migrationScript = MigrationScript "test.sql" q
