@@ -23,6 +23,6 @@ import           Test.Hspec                               (hspec)
 
 main :: IO ()
 main = do
-    con <- connectPostgreSQL "dbname=test host=localhost"
+    con <- connectPostgreSQL "dbname=test"
     withTransactionRolledBack con (hspec (V2.migrationSpec con))
     withTransactionRolledBack con (hspec (V1.migrationSpec con))
