@@ -2,7 +2,7 @@
 
 Forked from [Andreas Meingast](https://github.com/ameingast/postgresql-simple-migration)
 
-[![Haskell-CI](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml/badge.svg?branch=feature%2Fv2)](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml)
+[![Haskell-CI](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml/badge.svg?branch=master)](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml)
 
 
 Welcome to postgresql-simple-migrations, a tool for helping you with
