@@ -9,8 +9,6 @@
 --
 -- The test entry-point for postgresql-simple-migration.
 
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main
@@ -18,11 +16,13 @@ module Main
     ) where
 
 import           Database.PostgreSQL.Simple               (connectPostgreSQL)
-import           Database.PostgreSQL.Simple.MigrationTest (migrationSpec)
+import qualified Database.PostgreSQL.Simple.MigrationTestV1Compat as V1
+import qualified Database.PostgreSQL.Simple.MigrationTest as V2
 import           Database.PostgreSQL.Simple.Util          (withTransactionRolledBack)
 import           Test.Hspec                               (hspec)
 
 main :: IO ()
 main = do
     con <- connectPostgreSQL "dbname=test"
-    withTransactionRolledBack con (hspec (migrationSpec con))
+    withTransactionRolledBack con (hspec (V2.migrationSpec con))
+    withTransactionRolledBack con (hspec (V1.migrationSpec con))

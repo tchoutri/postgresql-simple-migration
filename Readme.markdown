@@ -1,6 +1,9 @@
 # PostgreSQL Migrations for Haskell
 
-[![Build Status](https://api.travis-ci.org/ameingast/postgresql-simple-migration.png)](https://travis-ci.org/ameingast/postgresql-simple-migration)
+Forked from [Andreas Meingast](https://github.com/ameingast/postgresql-simple-migration)
+
+[![Haskell-CI](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml/badge.svg?branch=feature%2Fv2)](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml)
+
 
 Welcome to postgresql-simple-migrations, a tool for helping you with
 PostgreSQL schema migrations.
@@ -48,15 +51,15 @@ in a first step.
 
 ```bash
 CON="host=$host dbname=$db user=$user password=$pw"
-./dist/build/migrate/migrate init $CON
-./dist/build/migrate/migrate migrate $CON $BASE_DIR
+cabal run migrate -- init $CON
+cabal run migrate -- migrate $CON $BASE_DIR
 ```
 
 To validate already executed scripts, execute the following:
 ```bash
 CON="host=$host dbname=$db user=$user password=$pw"
-./dist/build/migrate/migrate init $CON
-./dist/build/migrate/migrate validate $CON $BASE_DIR
+cabal run migrate -- init $CON
+cabal run migrate -- validate $CON $BASE_DIR
 ```
 
 For more information about the PostgreSQL connection string, see:
@@ -72,8 +75,7 @@ main :: IO ()
 main = do
     let url = "host=$host dbname=$db user=$user password=$pw"
     con <- connectPostgreSQL (BS8.pack url)
-    withTransaction con $ runMigration $
-        MigrationContext MigrationInitialization True con
+    runMigration con defaultOptions MigrationInitialization
 ```
 
 For file-based migrations, the following snippet can be used:
@@ -84,8 +86,7 @@ main = do
     let url = "host=$host dbname=$db user=$user password=$pw"
     let dir = "."
     con <- connectPostgreSQL (BS8.pack url)
-    withTransaction con $ runMigration $
-        MigrationContext (MigrationDirectory dir) True con
+    runMigration con defaltOptions $ MigrationDirectory dir
 ```
 
 To run Haskell-based migrations, use this:
@@ -97,8 +98,7 @@ main = do
     let name = "my script"
     let script = "create table users (email varchar not null)";
     con <- connectPostgreSQL (BS8.pack url)
-    withTransaction con $ runMigration $
-        MigrationContext (MigrationScript name script) True con
+    runMigration con defaultOptions $ MigrationScript name script
 ```
 
 Validations wrap _MigrationCommands_. This means that you can re-use all
@@ -112,26 +112,47 @@ main :: IO ()
 main = do
     let url = "host=$host dbname=$db user=$user password=$pw"
     con <- connectPostgreSQL (BS8.pack url)
-    withTransaction con $ runMigration $ MigrationContext
-        (MigrationValidation (MigrationDirectory dir)) True con
+    runMigration con default Options $ MigrationValidation (MigrationDirectory dir)
 ```
+
+### Transactions
 
 Database migrations should always be performed in a transactional context.
 
-The standalone binary takes care of proper transaction handling automatically.
+The standalone binary and the API default to using a new transaction for the 
+entire set of migrations.
 
-The library does not make any assumptions about the current transactional state
-of the system. This means that the caller of the library has to take care of
-opening/closing/rolling-back transactions. This way you can execute multiple
-migration-commands or validations in sequence while still staying in the
-transaction you opened.
+Using the `-t` argument to the binary will change this to using a new transaction
+per migration step (script).
 
-The tests make use of this. After executing all migration-tests, the
+When using the library you have full control over the behaviour of transactions
+by setting `optTransactionControl` on the `MigrationOptions` record.
+
+There are three options
+
+ 1) No new transaction: you manage the transaction, e.g. if you want to run multiple migrations in a single transaction
+ 2) Transaction per run: This is the default. New transaction for the entire migration
+ 3) Transaction per step
+
+The tests make use `TransactionPerRun`, after executing all migration-tests, the
 transaction is rolled back.
 
+
+### Options
+
+The `runMigration` and `runMigration` functions take an options record that let you
+set the following
+
+ - `optVerbose`: Is verbose logging enabled or not
+ - `optLogWriter`: The function used to write log messages. Defaults to `stdout` for info and `stderr` for errors
+ - `optTableName`: The name for the migrations table. This defaults to `schema_migrations`.
+ - `optTransactionControl`: How transactions should be hanbled
+
+
 ## Compilation and Tests
-The program is built with the _cabal_ build system. The following command
-builds the library, the standalone binary and the test package.
+The program can be built with _cabal_ or _stack_ build systems. 
+
+The following command builds the library, the standalone binary and the test package with _cabal_
 
 ```bash
 cabal configure --enable-tests && cabal build -j
@@ -144,20 +165,49 @@ database called _test_. Tests are executed through cabal as follows:
 cabal configure --enable-tests && cabal test
 ```
 
-To build the project in a cabal sandbox, use the following code:
+To build with stack use the following command
 
 ```bash
-cabal sandbox init
-cabal install -j --only-dependencies --enable-tests --disable-documentation
-cabal configure --enable-tests
-cabal test
+stack build
 ```
 
-To remove the generated cabal sandbox, use:
+To run the tests with stack use the following command
+
 ```bash
-cabal sandbox delete
+stack test
 ```
 
-## To Do
-* Collect executed scripts and check if already executed scripts have been
-  deleted.
+
+# What is new in version 0.2 and how to port existing code
+
+postgresql-simple-migration version 0.2.x introduced some new features that will require some minor changes if you were using a 0.1.x version before
+
+The new features are
+
+ - Support for customg logging
+ - Transaction control
+ - Custom migrations table name
+
+The most obvious code change is that you now use a `MigrationOptions` rather than a `MigrationContext`. 
+
+_Version 0.1.x_
+
+```haskell
+ withTransaction con . runMigration $ MigrationContext Pgm.MigrationInitialization True con
+```
+
+
+_Version 0.2.x_
+
+```haskell
+ runMigration con defaultOptions Pgm.MigrationInitialization
+```
+
+or if you want to change the default options
+
+```haskell
+ let options = defaultOptions { optTransactionControl = TransactionPerRun, optVerbosity = Verbose }
+ runMigration con options Pgm.MigrationInitialization
+```
+
+
