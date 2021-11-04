@@ -18,11 +18,17 @@ module Main
 import           Database.PostgreSQL.Simple               (connectPostgreSQL)
 import qualified Database.PostgreSQL.Simple.MigrationTestV1Compat as V1
 import qualified Database.PostgreSQL.Simple.MigrationTest as V2
+import qualified Database.PostgreSQL.Simple.TransactionPerRunTest as V2TrnRun
+import qualified Database.PostgreSQL.Simple.TransactionPerStepTest as V2TrnStep
 import           Database.PostgreSQL.Simple.Util          (withTransactionRolledBack)
 import           Test.Hspec                               (hspec)
 
 main :: IO ()
 main = do
-    con <- connectPostgreSQL "dbname=test"
-    withTransactionRolledBack con (hspec (V2.migrationSpec con))
-    withTransactionRolledBack con (hspec (V1.migrationSpec con))
+    conRollback <- connectPostgreSQL ""
+    withTransactionRolledBack conRollback (hspec (V2.migrationSpec conRollback))
+    withTransactionRolledBack conRollback (hspec (V1.migrationSpec conRollback))
+    withTransactionRolledBack conRollback (hspec (V2TrnRun.migrationSpec conRollback))
+
+    conPerStep <- connectPostgreSQL ""
+    hspec (V2TrnStep.migrationSpec conPerStep)

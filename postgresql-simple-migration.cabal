@@ -95,6 +95,8 @@ test-suite tests
   hs-source-dirs:         test
   other-modules:          Database.PostgreSQL.Simple.MigrationTest
                        ,  Database.PostgreSQL.Simple.MigrationTestV1Compat
+                       ,  Database.PostgreSQL.Simple.TransactionPerRunTest
+                       ,  Database.PostgreSQL.Simple.TransactionPerStepTest
   default-language:       Haskell2010
   type:                   exitcode-stdio-1.0
   build-depends:          postgresql-simple-migration
