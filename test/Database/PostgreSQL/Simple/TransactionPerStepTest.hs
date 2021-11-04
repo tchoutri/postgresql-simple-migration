@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A collection of postgresql-simple-migration specifications.
+-- A collection of postgresql-migration specifications.
 
 {-# LANGUAGE OverloadedStrings #-}
 

@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A standalone program for the postgresql-simple-migration library.
+-- A standalone program for the postgresql-migration library.
 
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -37,7 +37,7 @@ import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (Handle, hPutStrLn, stdout, stderr)
 
-import qualified Paths_postgresql_simple_migration as P
+import qualified Paths_postgresql_migration as P
 
 main :: IO ()
 main =  do
@@ -85,7 +85,7 @@ run
 run Nothing _ _ = printUsage stderr >> exitFailure
 run (Just cmd) verbose trnControl = do
   when (verbose == Verbose) $ do
-    putStrLn $ "postgresql-simple-migration Version: " <> showVersion P.version
+    putStrLn $ "postgresql-migration Version: " <> showVersion P.version
     putStrLn $ "Verbosity: " <> show verbose
     putStrLn $ "Transactions: " <> show trnControl
 

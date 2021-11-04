@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1.0
+ * Forked & renamed to postgresql-migration
+ * Support for changing the schema_migration table name 
+ * Support custom logging
+ * API option to control how transactions are used
+ * Support for older GHC versions dropped
+
 ## 0.1.15.0
 * Bumped dependencies
 
