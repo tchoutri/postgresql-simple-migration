@@ -1,11 +1,11 @@
 # PostgreSQL Migrations for Haskell
 
-Forked from [Andreas Meingast](https://github.com/ameingast/postgresql-simple-migration)
+Forked from [postgresql-simple-migration](https://github.com/ameingast/postgresql-simple-migration) created by [Andreas Meingast](https://github.com/ameingast/postgresql-simple-migration)
 
 [![Haskell-CI](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml/badge.svg?branch=master)](https://github.com/andrevdm/postgresql-simple-migration/actions/workflows/haskell-ci.yml)
 
 
-Welcome to postgresql-simple-migrations, a tool for helping you with
+Welcome to postgresql-migrations, a tool for helping you with
 PostgreSQL schema migrations.
 
 This project is an open-source database migration tool. It favors simplicity
@@ -178,19 +178,38 @@ stack test
 ```
 
 
-# What is new in version 0.2 and how to port existing code
+# Changes from the original postgresql-simple-migration (version 0.1)
 
-postgresql-simple-migration version 0.2.x introduced some new features that will require some minor changes if you were using a 0.1.x version before
+**postgresql-migration** is fork of *postgresql-simple-migration* created when the original *postgresql-simple-migration* project was archived.
+
+**postgresql-migration** version 0.2.x introduces some new features that will require some minor changes if you were using a 0.1.x version before
 
 The new features are
 
- - Support for customg logging
- - Transaction control
- - Custom migrations table name
+ - Support for custom logging (original PR from https://github.com/ameingast/postgresql-simple-migration/pull/36. Thanks @unclechu)
+ - Custom migrations table name (original PR from https://github.com/ameingast/postgresql-simple-migration/pull/30)
+ - Transaction control from the API (original request from https://github.com/ameingast/postgresql-simple-migration/issues/40) 
+
+
+There are two ways to move to **postgresql-migration**
+
+
+## Compatability layer - the simple way, but no new features
+
+ 1) Replace `postgresql-simple-migration` with `postgresql-migration` in your .cabal file
+ 2) Import `Database.PostgreSQL.Simple.Migration.V1Compat` rather than `Database.PostgreSQL.Simple.Migration`
+
+All your existing code should work as is
+
+
+## Porting to version 2
 
 The most obvious code change is that you now use a `MigrationOptions` rather than a `MigrationContext`. 
 
+
 _Version 0.1.x_
+
+This what you would have had
 
 ```haskell
  withTransaction con . runMigration $ MigrationContext Pgm.MigrationInitialization True con
@@ -198,6 +217,8 @@ _Version 0.1.x_
 
 
 _Version 0.2.x_
+
+Version 2 with the defaultOptions
 
 ```haskell
  runMigration con defaultOptions Pgm.MigrationInitialization
@@ -209,5 +230,7 @@ or if you want to change the default options
  let options = defaultOptions { optTransactionControl = TransactionPerRun, optVerbosity = Verbose }
  runMigration con options Pgm.MigrationInitialization
 ```
+
+That is all that needs to change. Your migrations scripts etc all remain as is.
 
 
