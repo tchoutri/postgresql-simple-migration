@@ -50,11 +50,13 @@ migrationSpec con = afterAll_ cleanup $ describe "Migrations" $ do
     r <- existsTable con "schema_migrations"
     r `shouldBe` True
 
+  -- This test shoud thow an exception since the second migration script is invalid SQL
   it "executes a migration script" $ (`shouldThrow` anyException) $ do
     let opts = defaultOptions{optTransactionControl = TransactionPerStep}
     r <- runMigrations con opts [scriptCreate2, scriptError2]
     r `shouldBe` MigrationSuccess
 
+  -- Since TransactionPerStep was used the first migration should have been committed even though the second one failed
   it "creates the table from the executed script" $ do
     r <- existsTable con "trn2"
     r `shouldBe` True

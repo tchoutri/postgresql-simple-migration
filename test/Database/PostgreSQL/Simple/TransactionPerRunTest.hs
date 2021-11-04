@@ -50,10 +50,12 @@ migrationSpec con = describe "Migrations" $ do
     r <- existsTable con "schema_migrations"
     r `shouldBe` True
 
+  -- This test shoud thow an exception since the second migration script is invalid SQL
   it "executes a migration script" $ (`shouldThrow` anyException) $ do
     let opts = defaultOptions{optTransactionControl = TransactionPerRun}
     runMigrations con opts [scriptCreate1, scriptError1]
 
+  -- The second migration script failed, so the changes from the first should be rolled back (TransactionPerRun)
   it "creates the table from the executed script" $ do
     r <- existsTable con "trn1"
     r `shouldBe` False
