@@ -9,7 +9,6 @@
 --
 -- A standalone program for the postgresql-simple-migration library.
 
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main

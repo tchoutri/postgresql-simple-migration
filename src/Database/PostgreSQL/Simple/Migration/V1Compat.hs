@@ -11,8 +11,6 @@
 --
 -- For usage, see Readme.markdown.
 
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.PostgreSQL.Simple.Migration.V1Compat
