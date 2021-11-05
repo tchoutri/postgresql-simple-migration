@@ -1,6 +1,6 @@
 cabal-version:              3.0
 name:                       postgresql-migration
-version:                    0.2.1.1
+version:                    0.2.1.2
 synopsis:                   PostgreSQL Schema Migrations
 homepage:                   https://github.com/andrevdm/postgresql-migration
 Bug-reports:                https://github.com/andrevdm/postgresql-migration/issues
@@ -49,7 +49,7 @@ library
   exposed-modules:        Database.PostgreSQL.Simple.Migration
                         , Database.PostgreSQL.Simple.Migration.V1Compat
                         , Database.PostgreSQL.Simple.Util
-                        , Paths_postgresql_migration
+  other-modules:          Paths_postgresql_migration
   autogen-modules:        Paths_postgresql_migration
   hs-source-dirs:         src
   default-language:       Haskell2010
