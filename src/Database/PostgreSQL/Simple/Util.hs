@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2014 Andreas Meingast <ameingast@gmail.com>
 --
 -- License     : BSD-style
--- Maintainer  : ameingast@gmail.com
+-- Maintainer  : andre@andrevdm.com
 -- Stability   : experimental
 -- Portability : GHC
 --
