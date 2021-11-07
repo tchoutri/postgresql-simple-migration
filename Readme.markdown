@@ -158,11 +158,14 @@ The following command builds the library, the standalone binary and the test pac
 cabal configure --enable-tests && cabal build -j
 ```
 
-To execute the tests, you need a running PostgreSQL server with an empty
-database called _test_. Tests are executed through cabal as follows:
+To execute the tests, you need a running PostgreSQL server. You need to set the correct
+environment varaiables for the psql connection.
+
+Tests are executed through cabal as follows:
 
 ```bash
-cabal configure --enable-tests && cabal test
+cabal configure --enable-tests 
+PGHOST=localhost PGDATABASE=test make-cabal test
 ```
 
 To build with stack use the following command
@@ -174,8 +177,11 @@ stack build
 To run the tests with stack use the following command
 
 ```bash
-stack test
+PGHOST=localhost PGDATABASE=test make stack-test
 ```
+
+NB note that the **psql** test argument must be set for the test suite to run. This is so that other CI environments like
+stackage or nix that wont have a running test psql instance will not fail on these tests
 
 
 # Changes from the original postgresql-simple-migration (version 0.1)

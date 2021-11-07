@@ -204,7 +204,7 @@ jobs:
 
       - name: tests
         run: |
-          PGPASSWORD=test PGDATABASE=test PGUSER=test $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
+          PGPASSWORD=test PGDATABASE=test PGUSER=test $CABAL run $ARG_COMPILER $ARG_TESTS $ARG_BENCH --test-show-details=direct test:tests psql
 
       - name: cabal check
         run: |

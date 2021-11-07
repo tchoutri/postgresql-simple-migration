@@ -31,6 +31,10 @@ stack-ghcid:
 stack-ghcid-quiet:
 	$(stack) exec -- ghcid -c "stack ghci $(package):lib --ghci-options='-ignore-dot-ghci -fobject-code -fno-warn-unused-do-bind -fno-warn-unused-matches -fno-warn-unused-local-binds -fno-warn-unused-imports -j6 +RTS -A128m -n2m -qg' --main-is $(package):exe:$(exe)"
 
+stack-test:
+	$(stack) test --ta "psql"
+
+
 
 cabal-run:
 	cabal run $(exe)
@@ -43,6 +47,9 @@ cabal-build-fast:
 
 cabal-ghcid:
 	ghcid --lint -c "cabal repl --repl-options='-ignore-dot-ghci' --repl-options='-fobject-code' --repl-options='-fno-warn-unused-do-bind' --repl-options='-j6' "
+
+cabal-test:
+	cabal run --test-show-details=direct test:tests psql
 
 
 .PHONY : stack-build stack-build-dirty stack-run stack-ghci stack-ghcid stack-check-nightly cabal-ghcid cabal-build cabal-run cabal-build-fast
