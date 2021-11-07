@@ -204,6 +204,7 @@ jobs:
 
       - name: tests
         run: |
+          ln -s source/share share
           PGPASSWORD=test PGDATABASE=test PGUSER=test $CABAL run $ARG_COMPILER $ARG_TESTS $ARG_BENCH --test-show-details=direct test:tests psql
 
       - name: cabal check
