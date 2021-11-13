@@ -103,4 +103,4 @@ test-suite tests
                         , base                        >= 4.9      && < 5.0
                         , bytestring                  >= 0.10     && < 0.11
                         , postgresql-simple           >= 0.4      && < 0.7
-                        , hspec                       >= 2.2      && < 2.9
+                        , hspec                       >= 2.2      && < 2.10
